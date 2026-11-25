@@ -278,7 +278,7 @@ const M2 = {
   leaves: [0x4f8a34, 0x5d9a3c, 0x3f7a2c, 0x6aa246, 0x7aa83e].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: .95, flatShading: true })),
   pine: new THREE.MeshStandardMaterial({ color: 0x2f6a3a, roughness: .95, flatShading: true }),
   hedge: new THREE.MeshStandardMaterial({ color: 0x3f7a30, roughness: 1, flatShading: true }),
-  hay: new THREE.MeshStandardMaterial({ color: 0xd8b25c, roughness: 1 }),
+  hay: new THREE.MeshStandardMaterial({ roughness: 1, map: canvasTex(128, 128, (g, w, h) => { g.fillStyle = '#d6ad55'; g.fillRect(0, 0, w, h); for (let i = 0; i < 900; i++) { g.strokeStyle = pick(['#e8c46a', '#b88d3c', '#f0d488', '#a87e34']); g.lineWidth = 1; const x = rand(0, w), y = rand(0, h); g.beginPath(); g.moveTo(x, y); g.lineTo(x + rand(-6, 6), y + rand(-2, 2)); g.stroke(); } g.fillStyle = 'rgba(120,80,30,.5)'; g.fillRect(0, h * .3, w, 4); g.fillRect(0, h * .7, w, 4); }) }),
   fence: new THREE.MeshStandardMaterial({ color: 0xc9b08a, roughness: .9 }),
   flower: [0xf2ece0, 0xf6d24a, 0xe8679a, 0xb06ad8, 0xf28a3c].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: .8 })),
   walls: [0xf4ede2, 0xefe2cc, 0xe8d2b0, 0xf2e4d4, 0xd9b08c].map(c => new THREE.MeshStandardMaterial({ map: T.wall, color: c, roughness: .95 })),
