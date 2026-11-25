@@ -7,6 +7,8 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { FXAAShader } from 'three/addons/shaders/FXAAShader.js';
 
 const $ = id => document.getElementById(id);
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -14,6 +16,8 @@ const pick = a => a[(Math.random() * a.length) | 0];
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const lerp = (a, b, k) => a + (b - a) * k;
 const params = new URLSearchParams(location.hash.slice(1));
+let fakeT = 0; // debug: simulated song clock when audio can't play (#fake)
+function songTime() { return params.has('fake') ? fakeT : (songs[songIdx]?.currentTime || 0); }
 const MOBILE = matchMedia('(pointer: coarse)').matches || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 try { await Promise.all([document.fonts.load('64px Anton'), document.fonts.load('24px Manrope')]); } catch (e) { }
 
@@ -33,7 +37,7 @@ const SONGS = [
     chorus: [[47, 68], [118, 138], [138, 148]] },
 ];
 const WORLDS = {
-  green: { fog: 0xd6e2cf, fogNear: 50, fogFar: 240, skyTop: 0x3a6fc0, skyMid: 0x9cc4e4, skyBot: 0xf6e7c4, sun: 0xfff0d2, sunI: 2.9, hemiSky: 0xdcefff, hemiGround: 0x56703a, hemiI: 1.15, sea: 0x5f8a3e, bloom: .3, stars: 0, fill: .45, spec: 0x000000 },
+  green: { fog: 0xd6e2cf, fogNear: 50, fogFar: 240, skyTop: 0x3a6fc0, skyMid: 0x9cc4e4, skyBot: 0xf6e7c4, sun: 0xfff0d2, sunI: 2.9, hemiSky: 0xdcefff, hemiGround: 0x56703a, hemiI: 1.15, sea: 0x5f8a3e, bloom: .35, stars: 0, fill: .45, spec: 0x000000 },
   stone: { fog: 0xf0cfae, fogNear: 45, fogFar: 230, skyTop: 0x44609f, skyMid: 0xe9b38c, skyBot: 0xffd4a0, sun: 0xffd9aa, sunI: 2.7, hemiSky: 0xffe6cc, hemiGround: 0x6a5444, hemiI: 1.1, sea: 0xb9a184, bloom: .4, stars: 0, fill: .5, spec: 0x000000 },
   beach: { fog: 0xf0a07a, fogNear: 45, fogFar: 230, skyTop: 0x2d2c6e, skyMid: 0xd8687a, skyBot: 0xffb36b, sun: 0xffd2a0, sunI: 2.6, hemiSky: 0xffc9a8, hemiGround: 0x5a3c58, hemiI: 1.1, sea: 0x6b4a7a, bloom: .55, stars: 0, fill: .5, spec: 0xffd0a0 },
   concert: { fog: 0x2a1840, fogNear: 40, fogFar: 210, skyTop: 0x0c0826, skyMid: 0x3a1f5e, skyBot: 0xd8604e, sun: 0xff9a7a, sunI: 1.0, hemiSky: 0x8a6ab8, hemiGround: 0x1c1028, hemiI: .95, sea: 0x1c1428, bloom: 1.0, stars: .7, fill: 1.3, spec: 0x000000 },
@@ -59,14 +63,16 @@ const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, .1, 120
 
 const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(innerWidth, innerHeight, { type: THREE.HalfFloatType, samples: MOBILE ? 0 : 4 }));
 composer.addPass(new RenderPass(scene, camera));
-const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), .55, .6, .82);
+const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), .55, .45, 1.15);
 composer.addPass(bloom);
 composer.addPass(new OutputPass());
+const fxaa = new ShaderPass(FXAAShader); fxaa.enabled = MOBILE; composer.addPass(fxaa);
 
 function resize() {
   renderer.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight);
   camera.aspect = innerWidth / innerHeight;
   camera.fov = camera.aspect < .8 ? 70 : 58;
+  if (typeof fxaa !== 'undefined') { const pr = renderer.getPixelRatio(); fxaa.material.uniforms.resolution.value.set(1 / (innerWidth * pr), 1 / (innerHeight * pr)); }
   camera.updateProjectionMatrix();
 }
 addEventListener('resize', resize); resize();
@@ -95,6 +101,11 @@ const sky = new THREE.Mesh(new THREE.SphereGeometry(900, 32, 16), new THREE.Shad
 }));
 sky.renderOrder = -1; scene.add(sky);
 
+// clouds: a ring of soft billboard sprites around the camera
+const cloudTex = canvasTex(256, 128, (g, w, h) => { for (let i = 0; i < 14; i++) { const x = rand(40, w - 40), y = rand(50, 90), r = rand(22, 46); const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, 'rgba(255,255,255,.95)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h); } });
+const clouds = new THREE.Group(); scene.add(clouds);
+for (let i = 0; i < 18; i++) { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: cloudTex, transparent: true, depthWrite: false, fog: false, opacity: .85 })); const a = i / 18 * Math.PI * 2 + rand(-.1, .1), r = rand(380, 520); sp.position.set(Math.cos(a) * r, rand(35, 95), Math.sin(a) * r); sp.scale.set(rand(170, 280), rand(60, 95), 1); sp.userData.a = a; sp.userData.r = r; clouds.add(sp); }
+sky.renderOrder = -2; clouds.renderOrder = -1;
 // sea / base ground (in green & stone worlds it's tinted like distant land)
 const seaTex = noiseTexture(256, 4);
 seaTex.wrapS = seaTex.wrapT = THREE.RepeatWrapping; seaTex.repeat.set(60, 60);
@@ -212,9 +223,9 @@ T.hut = canvasTex(128, 128, (g, w, h) => { for (let x = 0; x < w; x += 16) { g.f
 const M = {
   wood: new THREE.MeshStandardMaterial({ map: T.wood, roughness: .85 }),
   post: new THREE.MeshStandardMaterial({ color: 0x3a2418, roughness: .9 }),
-  bulb: new THREE.MeshBasicMaterial({ color: 0xffd08a }),
+  bulb: new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffd08a).multiplyScalar(2.2), toneMapped: false }),
   asphalt: new THREE.MeshStandardMaterial({ map: T.asphalt, roughness: .6, metalness: .1, emissiveMap: T.asphalt, emissive: 0xffffff, emissiveIntensity: .35 }),
-  sheet: new THREE.MeshStandardMaterial({ color: 0xf4f1ea, roughness: .9, side: THREE.DoubleSide }),
+  sheet: new THREE.MeshStandardMaterial({ color: 0xf4f1ea, roughness: .9, side: THREE.DoubleSide, map: canvasTex(128, 128, (g, w, h) => { g.fillStyle = '#f6f2ea'; g.fillRect(0, 0, w, h); g.fillStyle = 'rgba(196,20,44,.55)'; for (let x = 6; x < w; x += 22) g.fillRect(x, 0, 5, h); g.fillStyle = 'rgba(58,143,196,.35)'; g.fillRect(0, h - 14, w, 6); }) }),
   rope: new THREE.MeshStandardMaterial({ color: 0xd8cbb0 }),
   metal: new THREE.MeshStandardMaterial({ color: 0x9aa0a8, metalness: .8, roughness: .35 }),
   stick: new THREE.MeshStandardMaterial({ color: 0xf0cf98, roughness: .5, emissive: 0x4a2a00, emissiveIntensity: .5 }),
@@ -306,7 +317,7 @@ function worldForNextSeg() {
   if (SONGS[songIdx].world !== 'beach') return SONGS[songIdx].world;
   // estimate when the player will reach this new segment and pick the biome for that moment of the song
   let ahead = 0; for (let i = segI ?? 0; i < segs.length; i++) ahead += segs[i].len; ahead -= (s || 0);
-  const eta = (songs[songIdx]?.currentTime || 0) + Math.max(0, ahead) / Math.max(10, speed || 13);
+  const eta = songTime() + Math.max(0, ahead) / Math.max(10, speed || 13);
   return params.get('biome2') || params.get('biome') || biomeAt(eta);
 }
 function addSeg(first) {
@@ -661,7 +672,7 @@ function rocks(seg, s, lat) { for (let i = 0; i < 3; i++) { const r = new THREE.
 // ------------------------------------------------------------------ obstacles
 function spawnContent(seg, startS) {
   for (let s = startS; s < seg.len - 18;) {
-    const diff = clamp((speed - 13) / 17, 0, 1);
+    const diff = clamp((speed - 13) / 14, 0, 1);
     const lanes = [-1, 0, 1].sort(() => Math.random() - .5);
     if (Math.random() < .22) coinLine(seg, s, lanes[0], 7);
     else {
@@ -673,7 +684,7 @@ function spawnContent(seg, startS) {
     }
     if (Math.random() < .07) powerup(seg, s + 6, lanes[2] ?? 0, Math.random() < .55 ? 'sun' : 'mic');
     if (Math.random() < .07 && !letterOnTrack()) letter(seg, s + 8, lanes[1] ?? 0);
-    s += lerp(19, 11, diff) + rand(0, 6);
+    s += lerp(21, 14, diff) + rand(0, 6);
   }
 }
 function sheetLine(g) { // clothesline with a white sheet (from the Burdayım video idea) — slide under
@@ -814,7 +825,7 @@ function playAct(g, name, fade = .15, ts = 1) {
 const chaser = new THREE.Group(); scene.add(chaser); chaser.scale.setScalar(.66);
 const smokeMat = new THREE.SpriteMaterial({ map: T.smoke, color: 0x07020c, transparent: true, depthWrite: false, opacity: .85 });
 const smoke = [];
-for (let i = 0; i < 70; i++) { const sp = new THREE.Sprite(smokeMat.clone()); sp.userData = { a: Math.random() * 6.28, r: Math.random(), h: Math.random(), sp: rand(.6, 1.6) }; chaser.add(sp); smoke.push(sp); }
+for (let i = 0; i < 40; i++) { const sp = new THREE.Sprite(smokeMat.clone()); sp.userData = { a: Math.random() * 6.28, r: Math.random(), h: Math.random(), sp: rand(.6, 1.6) }; chaser.add(sp); smoke.push(sp); }
 const cBody = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 16), new THREE.MeshBasicMaterial({ color: 0x050008, transparent: true, opacity: .8, depthWrite: false })); cBody.scale.set(.75, 1.1, .7); cBody.position.y = 1.6; chaser.add(cBody);
 const eyeMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1, .08, .16).multiplyScalar(6), toneMapped: false });
 const eyes = [];
@@ -826,7 +837,7 @@ for (const side of [-1, 1]) {
   for (let k = -1; k <= 1; k++) { const f = new THREE.Mesh(new THREE.ConeGeometry(.04, .45, 6), new THREE.MeshBasicMaterial({ color: 0x050008 })); f.position.set(k * .09, 1.62, 0); f.rotation.z = k * .3; arm.add(f); }
   arm.userData.side = side; arms.push(arm);
 }
-const chaserLight = new THREE.PointLight(0xff1838, 4, 6); chaserLight.position.set(0, 2.2, -1); chaser.add(chaserLight);
+const chaserLight = new THREE.PointLight(0xff1838, 1, 3.5); chaserLight.position.set(0, 2.2, -1); chaser.add(chaserLight);
 
 // shield bubble
 const shield = new THREE.Mesh(new THREE.SphereGeometry(1.25, 24, 16), new THREE.MeshBasicMaterial({ color: 0xffc04a, transparent: true, opacity: .22, depthWrite: false, blending: THREE.AdditiveBlending }));
@@ -842,7 +853,8 @@ const camPos = new THREE.Vector3(), camLook = new THREE.Vector3(), tmp = new THR
 
 // ------------------------------------------------------------------ audio
 const songs = SONGS.map(sg => { const a = new Audio(sg.file); a.preload = 'auto'; a.volume = .8; return a; });
-songs.forEach((a, i) => a.addEventListener('ended', () => { if (state === 'run') nextSong(); }));
+songs.forEach((a, i) => a.addEventListener('ended', () => { if (state === 'run' || state === 'gig') nextSong(); else if (state === 'pause') songEndedInPause = true; }));
+let songEndedInPause = false;
 let AC = null;
 function ac() { if (!AC) try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { } if (AC?.state === 'suspended') AC.resume(); return AC; }
 function sfx(f, d = .08, type = 'square', v = .05, slide = 0) { const a = ac(); if (!a || muted) return; const o = a.createOscillator(), g = a.createGain(); o.type = type; o.frequency.value = f; if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, f + slide), a.currentTime + d); g.gain.value = v; g.gain.exponentialRampToValueAtTime(.0001, a.currentTime + d); o.connect(g).connect(a.destination); o.start(); o.stop(a.currentTime + d); }
@@ -866,6 +878,9 @@ function applyWorld(name, k = 1) {
   sun.color.copy(c(from.sun, W.sun)); sun.intensity = lerp(from.sunI, W.sunI, k);
   hemi.color.copy(c(from.hemiSky, W.hemiSky)); hemi.groundColor.copy(c(from.hemiGround, W.hemiGround)); hemi.intensity = lerp(from.hemiI, W.hemiI, k);
   seaMat.color.copy(c(from.sea, W.sea)); bloom.strength = lerp(from.bloom, W.bloom, k);
+  const cl = { green: 1, stone: .9, beach: .75, concert: .25, night: 0 }; const ca = lerp(cl[look.cur === WORLDS.green ? 'green' : Object.keys(WORLDS).find(n => WORLDS[n] === from) || name] ?? 1, cl[name] ?? 1, k);
+  const tint = c(name === 'beach' ? 0xffd2c0 : 0xffffff, name === 'concert' ? 0x8a6ab8 : name === 'beach' ? 0xffc2b0 : 0xffffff);
+  clouds.children.forEach(sp => { sp.material.opacity = ca * .85; sp.material.color.copy(tint); }); clouds.visible = ca > .02;
   fill.intensity = lerp(from.fill ?? .5, W.fill, k); seaMat.specular.copy(c(from.spec ?? 0xffd0a0, W.spec));
 }
 let worldFade = null;
@@ -966,7 +981,7 @@ addEventListener('pointercancel', () => touch = null);
 document.addEventListener('visibilitychange', () => { if (document.hidden && state === 'run') togglePause(); });
 function togglePause() {
   if (state === 'run') { state = 'pause'; songs[songIdx].pause(); showUI('pause'); }
-  else if (state === 'pause') { state = 'run'; songs[songIdx].play().catch(() => { }); showUI('hud'); clock.getDelta(); }
+  else if (state === 'pause') { state = 'run'; if (songEndedInPause) { songEndedInPause = false; nextSong(); } else songs[songIdx].play().catch(() => { }); showUI('hud'); clock.getDelta(); }
 }
 $('pauseBtn').onclick = e => { e.stopPropagation(); togglePause(); };
 $('resumeBtn').onclick = togglePause;
@@ -1020,6 +1035,7 @@ function selGirl(i, instant) {
 function update(dt, t) {
   if (msgTimer > 0 && (msgTimer -= dt) <= 0) $('msg').classList.remove('show');
   if (hintTimer > 0 && (hintTimer -= dt) <= 0) $('hint').style.opacity = 0;
+  clouds.position.copy(camera.position); clouds.rotation.y = t * .004;
   skyU.time.value = t; crowdTime.value = t; crowdTick(t); seaTex.offset.x = t * .01; seaTex.offset.y = t * .006; M2.water.normalMap.offset.set(t * .02, t * .012); M2.foam.opacity = .4 + Math.sin(t * 1.3) * .2;
   if (worldFade) { worldFade.t += dt / 2.5; look.cur = worldFade.from; applyWorld(worldFade.to, Math.min(1, worldFade.t)); if (worldFade.t >= 1) { look.cur = WORLDS[worldFade.to]; worldFade = null; } }
 
@@ -1053,10 +1069,11 @@ function update(dt, t) {
 
   const running = state === 'run';
   if (running) {
-    speed = Math.min(30, speed + dt * .2);
+    speed = Math.min(27, speed + dt * (speed < 18 ? .16 : .09));
     const dz = speed * dt; s += dz; dist += dz;
     // chorus multiplier
-    const ct = songs[songIdx].currentTime; const inCh = SONGS[songIdx].chorus.some(([a, b]) => ct >= a && ct < b);
+    if (params.has('fake')) fakeT += dt;
+    const ct = songTime(); const inCh = SONGS[songIdx].chorus.some(([a, b]) => ct >= a && ct < b);
     if (inCh !== (mult === 2)) { mult = inCh ? 2 : 1; $('mult').classList.toggle('hide', mult === 1); if (inCh) { showMsg('NAKARAT x2', 1.2); flash('#ffcf4a', .25); } }
     score += dz * mult;
     // corner
@@ -1163,7 +1180,7 @@ function update(dt, t) {
   cBody.scale.set(.75 + Math.sin(t * 6) * .04, 1.1 + Math.sin(t * 5) * .06, .7);
   for (const a of arms) { a.rotation.x = -1.1 - close * .7 + Math.sin(t * 9 + a.userData.side) * .25; a.rotation.z = -a.userData.side * (.35 - close * .2); }
   const blink = Math.sin(t * 3.1) > .985 ? .1 : 1; eyes.forEach(e => e.scale.y = .06 * blink);
-  chaserLight.intensity = 2 + close * 6;
+  chaserLight.intensity = .4 + close * 2.2;
   $('vign').style.opacity = clamp(close * 1.1 - .1, 0, .9) * fade;
   if (state === 'run' && close > .45) { hbT -= dt; if (hbT <= 0) { hbT = lerp(.75, .42, close); sfx(62, .16, 'sine', .22 * close, -20); setTimeout(() => sfx(55, .14, 'sine', .16 * close, -15), 150); } }
   $('hudFace').classList.toggle('danger', stumbleT > 0);
@@ -1171,6 +1188,7 @@ function update(dt, t) {
   // animate world objects
   for (const sg of segs) for (const o of sg.objs) {
     const m = o.mesh; if (!m || !m.parent) continue;
+    if ((o.t === 'high' || o.t === 'low' || o.t === 'block') && sg === seg && o.s < s - .3 && m.visible) { m.visible = false; continue; } // passed: never let the camera clip through it
     if (o.t === 'coin') m.rotation.y += dt * 4;
     else if (o.t === 'sun' || o.t === 'mic') { m.rotation.y += dt * 2; m.position.y = o.y + Math.sin(t * 3 + o.s) * .15; }
     else if (o.t === 'letter') m.position.y = o.y + Math.sin(t * 3 + o.s) * .12;
@@ -1209,7 +1227,7 @@ function collide(dt) {
   }
 }
 function collect(o) {
-  o.done = true; o.mesh.parent?.remove(o.mesh);
+  o.done = true; o.mesh.getWorldPosition(tmp2); burst(tmp2, o.t === 'coin' ? 0xffd36b : o.t === 'letter' ? 0xffffff : 0xffb040, o.t === 'coin' ? 10 : 22); o.mesh.parent?.remove(o.mesh);
   if (o.t === 'coin') { picks++; score += 10 * mult; sfx(1250 + (picks % 6) * 70, .06, 'square', .03); }
   else if (o.t === 'sun') { sunT = 6; gap = 1; flash('#ffd36b', .55); showMsg('BİR GÜNEŞ DOĞAR…', 1.8); sfx(523, .4, 'sine', .08, 520); setTimeout(() => sfx(784, .5, 'sine', .07, 300), 120); }
   else if (o.t === 'mic') { magnet = 9; showMsg('MİKROFON!', 1.2); sfx(880, .35, 'sawtooth', .04, 700); }
@@ -1397,10 +1415,33 @@ function endGig() {
   $('hint').style.opacity = 0; showMsg('KOŞ!', 1);
 }
 
+// ------------------------------------------------------------------ particles (sparkles + dust), one Points cloud
+const PMAX = 400, pPos = new Float32Array(PMAX * 3), pCol = new Float32Array(PMAX * 3), pVel = new Float32Array(PMAX * 3), pLife = new Float32Array(PMAX);
+const pGeo = new THREE.BufferGeometry(); pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3)); pGeo.setAttribute('color', new THREE.BufferAttribute(pCol, 3));
+const pCloud = new THREE.Points(pGeo, new THREE.PointsMaterial({ size: .22, map: T.glow, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })); pCloud.frustumCulled = false; scene.add(pCloud);
+let pNext = 0; const _pc = new THREE.Color();
+function emit(p, col, vx, vy, vz, life) { const i = pNext; pNext = (pNext + 1) % PMAX; pPos.set([p.x, p.y, p.z], i * 3); _pc.set(col); pCol.set([_pc.r, _pc.g, _pc.b], i * 3); pVel.set([vx, vy, vz], i * 3); pLife[i] = life; }
+function burst(p, col, n) { for (let k = 0; k < n; k++) emit(p, col, rand(-3, 3), rand(1, 5), rand(-3, 3), rand(.35, .7)); }
+let dustT = 0;
+function updateParticles(dt) {
+  if (state === 'run' && py === 0 && player) { dustT -= dt; if (dustT <= 0) { dustT = .05; const p = player.holder.position, c = { green: 0x9a7a52, stone: 0x8a8278, beach: 0xe2bf92, concert: 0x555060, night: 0x333044 }[worldAt(seg, s)] || 0x888888; emit(tmp2.set(p.x + rand(-.2, .2), .08, p.z + rand(-.2, .2)), c, rand(-.4, .4), rand(.4, 1), rand(-.4, .4), .45); } }
+  for (let i = 0; i < PMAX; i++) { if (pLife[i] <= 0) { pPos[i * 3 + 1] = -99; continue; } pLife[i] -= dt; pVel[i * 3 + 1] -= 9 * dt;
+    pPos[i * 3] += pVel[i * 3] * dt; pPos[i * 3 + 1] += pVel[i * 3 + 1] * dt; pPos[i * 3 + 2] += pVel[i * 3 + 2] * dt; const f = Math.max(0, pLife[i]) * 1.6; pCol[i * 3] *= .985; pCol[i * 3 + 1] *= .985; pCol[i * 3 + 2] *= .985; }
+  pGeo.attributes.position.needsUpdate = true; pGeo.attributes.color.needsUpdate = true;
+}
+// adaptive resolution: if the phone can't hold ~45 fps, render fewer pixels
+let fpsAcc = 0, fpsN = 0, prLevel = 0; const PR_STEPS = MOBILE ? [1.5, 1.2, 1.0, .85] : [1.75, 1.4, 1.1];
+function adaptResolution(dt) {
+  if (state !== 'run') return; fpsAcc += dt; fpsN++;
+  if (fpsAcc > 2) { const fps = fpsN / fpsAcc; fpsAcc = 0; fpsN = 0;
+    const next = fps < 45 ? Math.min(prLevel + 1, PR_STEPS.length - 1) : fps > 58 ? Math.max(prLevel - 1, 0) : prLevel;
+    if (next !== prLevel) { prLevel = next; const pr = Math.min(devicePixelRatio, PR_STEPS[prLevel]); renderer.setPixelRatio(pr); composer.setPixelRatio(pr); composer.setSize(innerWidth, innerHeight); } }
+}
 // ------------------------------------------------------------------ main loop
 function frame() {
   const dt = Math.min(.05, clock.getDelta()), t = clock.elapsedTime;
-  if (state !== 'loading') update(dt, t);
+  if (state !== 'loading') { update(dt, t); updateParticles(dt); adaptResolution(dt); }
+  if (state === 'run') { const f = (camera.aspect < .8 ? 70 : 58) + (speed - 13) * .45; if (Math.abs(camera.fov - f) > .05) { camera.fov += (f - camera.fov) * Math.min(1, dt * 2); camera.updateProjectionMatrix(); } }
   composer.render();
   requestAnimationFrame(frame);
 }
