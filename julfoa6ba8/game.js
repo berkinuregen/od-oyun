@@ -909,6 +909,13 @@ let AC = null;
 function ac() { if (!AC) try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { } if (AC?.state === 'suspended') AC.resume(); return AC; }
 function sfx(f, d = .08, type = 'square', v = .05, slide = 0) { const a = ac(); if (!a || muted) return; const o = a.createOscillator(), g = a.createGain(); o.type = type; o.frequency.value = f; if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, f + slide), a.currentTime + d); g.gain.value = v; g.gain.exponentialRampToValueAtTime(.0001, a.currentTime + d); o.connect(g).connect(a.destination); o.start(); o.stop(a.currentTime + d); }
 function noise(d, v, lp = 2000) { const a = ac(); if (!a || muted) return; const b = a.createBuffer(1, a.sampleRate * d, a.sampleRate), ch = b.getChannelData(0); for (let i = 0; i < ch.length; i++) ch[i] = (Math.random() * 2 - 1) * (1 - i / ch.length); const src = a.createBufferSource(), g = a.createGain(), f = a.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = lp; src.buffer = b; g.gain.value = v; src.connect(f).connect(g).connect(a.destination); src.start(); }
+function crowdCheer(dur = 2.4, vol = .22) { // synthesized crowd roar + scattered claps
+  const a = ac(); if (!a || muted) return; const n = Math.floor(a.sampleRate * dur), b = a.createBuffer(1, n, a.sampleRate), ch = b.getChannelData(0);
+  for (let i = 0; i < n; i++) { const t = i / n; ch[i] = (Math.random() * 2 - 1) * Math.min(1, t * 6) * (1 - t) ** 1.5; }
+  for (let k = 0; k < 40; k++) { const st = Math.floor(rand(0, n * .85)), len = Math.floor(a.sampleRate * .02); for (let i = 0; i < len; i++) ch[st + i] += (Math.random() * 2 - 1) * (1 - i / len) * 1.4; }
+  const src = a.createBufferSource(), bp = a.createBiquadFilter(), g = a.createGain(); bp.type = 'bandpass'; bp.frequency.value = 1400; bp.Q.value = .6; g.gain.value = vol;
+  src.buffer = b; src.connect(bp).connect(g).connect(a.destination); src.start();
+}
 function setMuted(m) { muted = m; localStorage.setItem('od3_muted', m ? '1' : '0'); songs.forEach(a => a.muted = m); $('muteBtn').textContent = 'Ses: ' + (m ? 'kapalı' : 'açık'); }
 setMuted(muted);
 function playSong(i, from = 0) { songs.forEach(a => a.pause()); songIdx = i; const a = songs[i]; try { a.currentTime = from; } catch (e) { } a.play().catch(() => { }); $('songName').textContent = SONGS[i].title; $('songArtist').textContent = SONGS[i].artist; }
@@ -1172,7 +1179,7 @@ function update(dt, t) {
     gap = downT < 2.2 ? Math.max(.05, gap - dt * 1.2) : Math.min(2.5, gap + dt * 1.4);
     if (downT > 1.5 && player.cur === player.actions.fall) playAct(player, 'reach', .5, 1);
     if (downT > .35 && !friends.length) { spawnFriends(); showMsg(upTR(BAND[sel].name) + ' DÜŞTÜ…', 1.4); }
-    if (downT > 2.3 && !downReasonShown) { downReasonShown = true; showMsg('OD BAND GELDİ!', 1.8); sfx(523, .25, 'triangle', .06); setTimeout(() => sfx(659, .25, 'triangle', .06), 140); setTimeout(() => sfx(784, .4, 'triangle', .06), 280); }
+    if (downT > 2.3 && !downReasonShown) { downReasonShown = true; crowdCheer(2.2, .16); showMsg('OD BAND GELDİ!', 1.8); sfx(523, .25, 'triangle', .06); setTimeout(() => sfx(659, .25, 'triangle', .06), 140); setTimeout(() => sfx(784, .4, 'triangle', .06), 280); }
     if (downT > 3.0 && player.cur === player.actions.reach) { playAct(player, 'standup', .35, 2.4); }
     if (downT > 5.6 && player.cur !== player.actions.cheer) { playAct(player, 'cheer', .4, 1); showMsg('BURDAYIM!', 2); flash('#ffcf4a', .3); songs[songIdx].volume = .8; }
     for (const f of friends) {
@@ -1423,7 +1430,7 @@ function startGig() {
   gig = { t: 0, s0, stage, band: [], props: [], savedSpeed: speed, startS: s, startLat: lat };
   gigVideo.play().then(() => { stage.userData.screen.material.map = gigVideoTex; stage.userData.screen.material.needsUpdate = true; }).catch(() => { });
   gig.props.push(gigAudience(s0));
-  score += 1000; showMsg('OD BAND KONSERİ!', 2.2); flash('#ffcf4a', .45); $('mult').classList.add('hide');
+  score += 1000; crowdCheer(3, .26); showMsg('OD BAND KONSERİ!', 2.2); flash('#ffcf4a', .45); $('mult').classList.add('hide');
   for (let i = 0; i < NGIRLS; i++) {
     const girl = i === sel ? player : makeGirl(i); if (i !== sel) scene.add(girl.holder);
     const [gl, gs, role] = GIG_SPOTS[i];

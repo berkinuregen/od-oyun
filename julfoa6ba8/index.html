@@ -77,6 +77,14 @@
     .ghost{font-size:13px;padding:8px 12px}.row{gap:7px}.go{font-size:28px;padding:10px 38px}
     .logo .tag{font-size:12px}.who{font-size:23px}
   }
+  @media (min-aspect-ratio:5/4){
+    .logo{position:absolute;left:3vw;top:4vh;text-align:left}
+    .odlogo{width:min(20vw,220px);margin:0}
+    .logo .tag{max-width:260px}
+    .pick{position:absolute;right:3vw;bottom:5vh;width:auto;max-width:460px;align-items:flex-end}
+    .pick .row{justify-content:flex-end}
+    .who{text-align:right}
+  }
   .arrows{position:absolute;top:46%;left:0;right:0;display:flex;justify-content:space-between;padding:0 8px}
   .arrows button{width:48px;height:48px;border-radius:50%;background:rgba(0,0,0,.35);font-size:26px;line-height:1}
 
@@ -161,7 +169,7 @@
     <li class="play">Burdayım <span>5. tekli · 4 Aralık · DART · oyunda</span></li>
   </ul>
   <h3>EMEĞİ GEÇENLER</h3>
-  <p style="font-size:13px">Sahne ekranında: OD Band – Kanada (Official Video), FadeOut Müzik.<br>3D enstrüman modelleri (poly.pizza, CC-BY 3.0): “Electric guitar” – Poly by Google, “Bass Guitar” – Zsky, “Full Drum Kit” – Batoski.</p>
+  <p style="font-size:13px">Sahne ekranında: OD Band – Kanada (Official Video), FadeOut Müzik.<br>3D enstrüman modelleri (poly.pizza, CC-BY 3.0): “Electric guitar” – Poly by Google, “Bass Guitar” – Zsky, “Full Drum Kit” – Batoski. Ağaç, palmiye, kaya, lamba, seyirci modelleri: Quaternius (CC0).</p>
   <h3>OYUNDAKİ DÜNYALAR</h3>
   <p><b>Burdayım:</b> Şarkı boyunca yeşillik bir yoldan taş sokaklara, oradan gün batımında kumsala, en sonunda OD Band konser alanına koşuyorsun. Dünyalar koşarken birbirine bağlanıyor. İplerde beyaz çarşaflar, yolda turne kasaları. Güneşi topla: “Bir güneş doğar, ben burdayım.” Nakaratlarda puan ikiye katlanır.</p>
   <p style="margin-top:22px"><button class="go" data-close>Tamam</button></p>
@@ -193,6 +201,6 @@
 
 <div id="loading"><div><img src="assets/logo_red.png" alt="OD Band" style="width:min(56vw,260px);display:block;margin:0 auto 6px"><div class="lbar"><i id="lbar"></i></div><small id="ltxt">yükleniyor…</small></div></div>
 
-<script type="module" src="game.js?v=20261126m"></script>
+<script type="module" src="game.js?v=20261126o"></script>
 </body>
 </html>
