@@ -1048,7 +1048,9 @@ function toMenu() {
   genWorld = 'beach'; setWorld('beach', true);
   menuStage.clear(); menuStage.visible = true;
   const sm = M2.sand.clone(); sm.map = T.sand.clone(); sm.map.needsUpdate = true; sm.map.repeat.set(10, 10); const sand = new THREE.Mesh(new THREE.CircleGeometry(30, 48), sm); sand.rotation.x = -Math.PI / 2; sand.receiveShadow = true; menuStage.add(sand);
-  for (const x of [-3.2, 3.2]) { const a = new THREE.Mesh(new THREE.BoxGeometry(1, 1.3, .7), [M.ampSide, M.ampSide, M.ampSide, M.ampSide, M.amp, M.ampSide]); a.position.set(x, .65, -2.6); a.rotation.y = -x * .12; a.castShadow = true; menuStage.add(a); }
+  for (const x of [-3.2, 3.2]) { const a = envClone('speaker', 1.5) || new THREE.Mesh(new THREE.BoxGeometry(1, 1.3, .7), [M.ampSide, M.ampSide, M.ampSide, M.ampSide, M.amp, M.ampSide]); a.position.set(x, a.isMesh ? .65 : 0, -2.6); a.rotation.y = -x * .12; a.traverse?.(o => { if (o.isMesh) o.castShadow = true; }); menuStage.add(a); }
+  for (const [x, z, h] of [[-6.5, -7, 6.5], [6.8, -8, 7.2], [-10, -12, 7.8], [10.5, -13, 6.8]]) { const p = envClone('palm', h); if (p) { p.position.set(x, 0, z); p.rotation.y = rand(0, 6); menuStage.add(p); } }
+  for (let i = 0; i < 14; i++) { const b = new THREE.Mesh(G.sphere, M.bulb); b.scale.setScalar(.07); const u = i / 13; b.position.set(-4.5 + u * 9, 3.1 - Math.sin(u * Math.PI) * .6, -3.4); menuStage.add(b); }
   const ring = new THREE.Mesh(new THREE.RingGeometry(.55, .75, 40), new THREE.MeshBasicMaterial({ color: 0xffcf4a, transparent: true, opacity: .8 })); ring.rotation.x = -Math.PI / 2; ring.position.y = .02; ring.name = 'ring'; menuStage.add(ring);
   menuGirls = [...Array(NGIRLS).keys()].map(i => { const g = makeGirl(i); menuStage.add(g.holder); playAct(g, 'idle', 0, 1); if (g.actions.idle) g.actions.idle.time = i * .7; g.holder.rotation.y = Math.PI; return g; });
   selGirl(sel, true);
