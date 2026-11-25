@@ -612,7 +612,7 @@ const ENV = {};
 const ENV_FILES = { tree1: 'tree1', tree2: 'tree2', tree3: 'tree3', tree4: 'tree4', pines: 'pines', palm: 'palm', rock1: 'rock1', rock2: 'rock2', hedge: 'hedge', flowers: 'flowers', fence: 'fence', lamp: 'lamp', barrel: 'barrel', speaker: 'speaker' };
 function loadEnv() {
   return Promise.all(Object.entries(ENV_FILES).map(([k, f]) => new Promise(res => loader.load(`models/env/${f}.glb`, g => {
-    const sc = g.scene; sc.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; if (o.material && MOBILE) o.material.flatShading = false; } });
+    const sc = g.scene; sc.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; if (o.material) { o.material.metalness = 0; o.material.roughness = Math.max(.75, o.material.roughness ?? 1); } } }); // no env map: metal-ish exports looked blown out
     const b = new THREE.Box3().setFromObject(sc), sz = b.getSize(new THREE.Vector3()), c = b.getCenter(new THREE.Vector3());
     const w = new THREE.Group(); sc.position.set(-c.x, -b.min.y, -c.z); w.add(sc); w.userData.size = sz; sc.traverse(o => { if (o.geometry) o.geometry.userData.keep = true; }); ENV[k] = w; res();
   }, undefined, () => res()))));
@@ -1031,6 +1031,10 @@ $('quitBtn').onclick = () => { songs.forEach(a => a.pause()); toMenu(); };
 $('goBtn').onclick = () => startRun();
 $('againBtn').onclick = () => startRun();
 $('menuBtn').onclick = () => toMenu();
+$('shareBtn').onclick = async () => { // share score + link (Web Share on phones, clipboard elsewhere)
+  const text = `OD Band – Burdayım oyununda ${BAND[sel].name} ile ${Math.floor(score)} puan yaptım! 🎸`, url = location.href.split('#')[0];
+  try { if (navigator.share) { await navigator.share({ title: 'OD Band – Burdayım', text, url }); return; } await navigator.clipboard.writeText(text + ' ' + url); $('shareBtn').textContent = 'KOPYALANDI ✓'; setTimeout(() => $('shareBtn').textContent = 'PUANIMI PAYLAŞ', 2000); } catch (e) { }
+};
 $('prevBtn').onclick = () => selGirl(sel - 1);
 $('nextBtn').onclick = () => selGirl(sel + 1);
 $('bandBtn').onclick = () => $('band').classList.remove('hide');
