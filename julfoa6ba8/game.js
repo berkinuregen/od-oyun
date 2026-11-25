@@ -16,6 +16,8 @@ const pick = a => a[(Math.random() * a.length) | 0];
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const lerp = (a, b, k) => a + (b - a) * k;
 const params = new URLSearchParams(location.hash.slice(1));
+const tut = { done: localStorage.getItem('od3_tut') === '1' };
+const buzz = ms => { try { navigator.vibrate?.(ms); } catch (e) { } };
 let fakeT = 0; // debug: simulated song clock when audio can't play (#fake)
 function songTime() { return params.has('fake') ? fakeT : (songs[songIdx]?.currentTime || 0); }
 const MOBILE = matchMedia('(pointer: coarse)').matches || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
@@ -299,13 +301,14 @@ const M2 = {
   ledBulb: new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffd68a).multiplyScalar(3), toneMapped: false }),
   crowd: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .9 }),
   phones: new THREE.PointsMaterial({ map: T.glow, color: 0xcfe6ff, size: .35, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }),
-  beamGeo: (() => { const g = new THREE.ConeGeometry(1.5, 16, 18, 1, true); g.translate(0, -8, 0); return g; })(),
+  beamGeo: (() => { const g = new THREE.ConeGeometry(1.5, 16, 18, 1, true); g.translate(0, -8, 0); g.userData.keep = true; return g; })(),
   water: new THREE.MeshPhongMaterial({ color: 0x6b4a7a, specular: 0xffd0a0, shininess: 90, normalMap: (() => { const t = seaTex.clone(); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(1, 1); t.needsUpdate = true; return t; })(), normalScale: new THREE.Vector2(.6, .6) }),
   foam: new THREE.MeshBasicMaterial({ color: 0xfff4e6, transparent: true, opacity: .55, depthWrite: false }),
 };
 const crowdTime = { value: 0 };
 M2.crowd.onBeforeCompile = sh => { sh.uniforms.uTime = crowdTime; sh.vertexShader = 'uniform float uTime;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  transformed.y += abs(sin(uTime * 6.5 + float(gl_InstanceID) * 1.37)) * 0.3;'); };
 const G2 = { ico: new THREE.IcosahedronGeometry(1, 0), cone: new THREE.ConeGeometry(1, 1, 7), dodec: new THREE.DodecahedronGeometry(1, 0) };
+Object.values(G2).forEach(g => g.userData.keep = true); Object.values(G).forEach(g => { if (g?.userData) g.userData.keep = true; });
 
 // ------------------------------------------------------------------ track
 let segs = [];           // {sx,sz,dir,len,turn,group,objs,world}
@@ -467,7 +470,7 @@ function ensureCrowdGeo() {
     const head = new THREE.SphereGeometry(.15, 8, 6); head.translate(0, 1.33, 0);
     const armL = new THREE.BoxGeometry(.08, .55, .08); armL.translate(-.18, 1.55, 0); armL.rotateZ(.12);
     const armR = new THREE.BoxGeometry(.08, .55, .08); armR.translate(.18, 1.55, 0); armR.rotateZ(-.12);
-    crowdGeo = mergeGeometries([body, head, armL, armR]);
+    crowdGeo = mergeGeometries([body, head, armL, armR]); crowdGeo.userData.keep = true;
   }
   return crowdGeo;
 }
@@ -479,7 +482,7 @@ const crowdSignTex = ['LOGO', 'LOGO2', 'BURDAYIM ♥', 'OD ♥', 'EYLÜL!', 'GÜ
   g.fillStyle = pick(['#ffcf4a', '#ffffff', '#ff5f8a', '#4de1ff']); g.fillRect(0, 0, 256, 144); g.strokeStyle = '#140a16'; g.lineWidth = 8; g.strokeRect(6, 6, 244, 132);
   g.fillStyle = t.startsWith('OD') ? '#c4142c' : '#140a16'; let fs = 70; g.font = `${fs}px Anton, Impact`; const w = g.measureText(t).width; if (w > 225) { fs = Math.floor(fs * 225 / w); g.font = `${fs}px Anton, Impact`; }
   g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(t, 128, 76); }));
-const crowdSignGeo = (() => { const board = new THREE.BoxGeometry(.78, .44, .02); board.translate(0, 2.25, .12); const stick = new THREE.BoxGeometry(.03, .7, .03); stick.translate(0, 1.85, .12); return { board, stick }; })();
+const crowdSignGeo = (() => { const board = new THREE.BoxGeometry(.78, .44, .02); board.translate(0, 2.25, .12); const stick = new THREE.BoxGeometry(.03, .7, .03); stick.translate(0, 1.85, .12); board.userData.keep = stick.userData.keep = true; return { board, stick }; })();
 function addBounce(mat, amp, speed = 6.5) {
   mat.onBeforeCompile = sh => { sh.uniforms.uTime = crowdTime; sh.vertexShader = 'uniform float uTime;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>\n  transformed.y += abs(sin(uTime * ${speed.toFixed(1)} + float(gl_InstanceID) * 1.37)) * ${amp.toFixed(3)};`); };
   mat.customProgramCacheKey = () => 'bounce' + amp + speed; return mat;
@@ -500,7 +503,7 @@ function bakeKind(gltf) {
     root.traverse(o => { if (!o.isSkinnedMesh) return; o.skeleton.update();
       const pos = o.geometry.attributes.position, arr = new Float32Array(pos.count * 3), v = new THREE.Vector3();
       for (let i = 0; i < pos.count; i++) { v.fromBufferAttribute(pos, i); o.applyBoneTransform(i, v); v.applyMatrix4(o.matrixWorld); arr[i * 3] = v.x; arr[i * 3 + 1] = v.y; arr[i * 3 + 2] = v.z; }
-      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(arr, 3)); if (o.geometry.index) g.setIndex(o.geometry.index.clone());
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(arr, 3)); if (o.geometry.index) g.setIndex(o.geometry.index.clone()); g.userData.keep = true;
       parts.push({ geo: g, mat: mat(o.material) }); });
     if (!norm) { const b = new THREE.Box3(); parts.forEach(p => { p.geo.computeBoundingBox(); b.union(p.geo.boundingBox); }); const k = 1.68 / (b.max.y - b.min.y); norm = { k, cx: (b.min.x + b.max.x) / 2, cz: (b.min.z + b.max.z) / 2, y0: b.min.y }; }
     parts.forEach(p => { p.geo.translate(-norm.cx, -norm.y0, -norm.cz); p.geo.scale(norm.k, norm.k, norm.k); p.geo.computeVertexNormals(); });
@@ -611,7 +614,7 @@ function loadEnv() {
   return Promise.all(Object.entries(ENV_FILES).map(([k, f]) => new Promise(res => loader.load(`models/env/${f}.glb`, g => {
     const sc = g.scene; sc.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; if (o.material && MOBILE) o.material.flatShading = false; } });
     const b = new THREE.Box3().setFromObject(sc), sz = b.getSize(new THREE.Vector3()), c = b.getCenter(new THREE.Vector3());
-    const w = new THREE.Group(); sc.position.set(-c.x, -b.min.y, -c.z); w.add(sc); w.userData.size = sz; ENV[k] = w; res();
+    const w = new THREE.Group(); sc.position.set(-c.x, -b.min.y, -c.z); w.add(sc); w.userData.size = sz; sc.traverse(o => { if (o.geometry) o.geometry.userData.keep = true; }); ENV[k] = w; res();
   }, undefined, () => res()))));
 }
 // clone a model scaled so its height (or width when axis='x') is `size` metres
@@ -926,7 +929,7 @@ function snapshotLook() { const W = { ...WORLDS[curWorld] }; W.fog = scene.fog.c
 
 // ------------------------------------------------------------------ game flow
 function clearTrack() { for (const sg of segs) { root.remove(sg.group); disposeGroup(sg.group); } segs = []; }
-function disposeGroup(g) { g.traverse(o => { if (o.geometry && !Object.values(G).includes(o.geometry) && o.geometry !== G.pick) o.geometry.dispose?.(); }); }
+function disposeGroup(g) { g.traverse(o => { const geo = o.geometry; if (geo && !geo.userData.keep && !Object.values(G).includes(geo)) geo.dispose?.(); }); } // shared model geometry is flagged keep
 
 function newRun() {
   clearTrack(); songIdx = +(params.get('song') || 0); segI = 0; s = 0; genWorld = SONGS[songIdx].world === 'night' ? 'night' : (params.get('biome') || 'green'); setWorld(genWorld, true); clearFriends();
@@ -945,7 +948,7 @@ function startRun() {
 }
 function gameOver(reason) { // she falls; the band comes back for her
   if (state !== 'run') return;
-  state = 'down'; downT = 0; downReason = reason; downReasonShown = false; noise(.5, .3, 900); sfx(80, .5, 'sawtooth', .1, -30);
+  buzz([60, 40, 160]); state = 'down'; downT = 0; downReason = reason; downReasonShown = false; noise(.5, .3, 900); sfx(80, .5, 'sawtooth', .1, -30);
   songs[songIdx].volume = .35;
   sliding = false; vy = 0;
   playAct(player, 'fall', .12, 1.15);
@@ -1133,6 +1136,13 @@ function update(dt, t) {
     if (stumbleT > 0) stumbleT -= dt; else gap = Math.min(1, gap + dt * .07);
     if (magnet > 0) magnet -= dt;
     if (sunT > 0) { sunT -= dt; gap = Math.min(1, gap + dt * .6); }
+    // first-run coaching: tell the player what to do the first time each obstacle type shows up
+    if (!tut.done) {
+      for (const o of seg.objs) { if (o.done || !o.mesh?.visible) continue; const ds = o.s - s; if (ds < 4 || ds > 13) continue;
+        if (['low', 'high', 'block'].includes(o.t) && Math.abs(o.lane * LANE - lat) < 1 && !tut[o.t]) { tut[o.t] = 1; showMsg({ low: MOBILE ? '↑ YUKARI KAYDIR: ZIPLA' : '↑ ZIPLA', high: MOBILE ? '↓ AŞAĞI KAYDIR: KAY' : '↓ KAY', block: MOBILE ? '← → KAYDIR: ŞERİT DEĞİŞTİR' : '← → ŞERİT DEĞİŞTİR' }[o.t], 1.6); break; } }
+      if (!tut.turn && seg.len - s < TURN_WIN && seg.len - s > 3) { tut.turn = 1; showMsg(seg.turn === 'L' ? (MOBILE ? '← SOLA KAYDIR: DÖN' : '← DÖN') : (MOBILE ? 'SAĞA KAYDIR: DÖN →' : 'DÖN →'), 1.6); }
+      if (tut.low && tut.high && tut.block && tut.turn) { tut.done = true; localStorage.setItem('od3_tut', '1'); }
+    }
     // collisions
     collide(dt);
     if (gigPending && canStartGig()) startGig();
@@ -1267,14 +1277,14 @@ function collect(o) {
   else if (o.t === 'mic') { magnet = 9; showMsg('MİKROFON!', 1.2); sfx(880, .35, 'sawtooth', .04, 700); }
   else if (o.t === 'letter') {
     const word = [...SONGS[songIdx].word];
-    if (!letterGot.has(o.idx)) { letterGot.add(o.idx); sfx(990, .12, 'triangle', .06, 200); buildLetters();
+    if (!letterGot.has(o.idx)) { letterGot.add(o.idx); buzz(30); sfx(990, .12, 'triangle', .06, 200); buildLetters();
       if (letterGot.size >= word.length) { letterGot.clear(); setTimeout(buildLetters, 1500); sfx(523, .3, 'triangle', .07); setTimeout(() => sfx(784, .4, 'triangle', .07), 150); if (canStartGig()) startGig(); else { gigPending = true; showMsg(upTR(SONGS[songIdx].title) + '!', 1.6); } } }
   }
 }
 function smash(o) { o.mesh.parent?.remove(o.mesh); noise(.2, .2, 3000); score += 25; }
 function stumble(o) {
   if (stumbleT > 0) { gameOver('İki kez tökezleyip düştün.'); return; }
-  stumbleT = 4.5; gap = .2; noise(.25, .25, 1200); sfx(90, .3, 'sawtooth', .08, -40); showMsg('GÖLGE YAKLAŞIYOR!', 1.4);
+  buzz(120); stumbleT = 4.5; gap = .2; noise(.25, .25, 1200); sfx(90, .3, 'sawtooth', .08, -40); showMsg('GÖLGE YAKLAŞIYOR!', 1.4);
   lane = clamp(Math.round(lat / LANE) + (lat > o.lane * LANE ? 1 : -1) * 0, -1, 1);
 }
 let lastHud = 0;
@@ -1306,7 +1316,7 @@ const GM = {
 const PROPS = {};
 function loadProps() {
   const norm = (scene, size, axis) => { // scale so the given axis spans `size` m, centre on x/z, feet at y=0
-    const w = new THREE.Group(); w.add(scene); scene.traverse(o => { if (o.isMesh) { o.castShadow = true; if (o.material) o.material.side = THREE.DoubleSide; } });
+    const w = new THREE.Group(); w.add(scene); scene.traverse(o => { if (o.isMesh) { o.castShadow = true; o.geometry.userData.keep = true; if (o.material) o.material.side = THREE.DoubleSide; } });
     const b = new THREE.Box3().setFromObject(scene), sz = b.getSize(new THREE.Vector3()), c = b.getCenter(new THREE.Vector3());
     const k = size / sz[axis]; scene.scale.setScalar(k); scene.position.set(-c.x * k, -b.min.y * k, -c.z * k); return w;
   };
