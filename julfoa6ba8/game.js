@@ -66,6 +66,7 @@ $('game').appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 scene.fog = new THREE.Fog(0xf0a07a, 45, 230);
+import('three/addons/environments/RoomEnvironment.js').then(({ RoomEnvironment }) => { const pm = new THREE.PMREMGenerator(renderer); const env = pm.fromScene(new RoomEnvironment(), .04).texture; pm.dispose(); for (const m of [M.pick, M.stick, M.metal, GM?.chrome, GM?.cymbal].filter(Boolean)) { m.envMap = env; m.envMapIntensity = .8; m.needsUpdate = true; } /* reflections only on metals/picks: a scene-wide env map washed everything out */ }).catch(() => { });
 const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, .1, 1200);
 
 const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(innerWidth, innerHeight, { type: THREE.HalfFloatType, samples: MOBILE ? 0 : 4 }));
@@ -860,8 +861,16 @@ const chaser = new THREE.Group(); scene.add(chaser); chaser.scale.setScalar(.66)
 const smokeMat = new THREE.SpriteMaterial({ map: T.smoke, color: 0x07020c, transparent: true, depthWrite: false, opacity: .85 });
 const smoke = [];
 for (let i = 0; i < 40; i++) { const sp = new THREE.Sprite(smokeMat.clone()); sp.userData = { a: Math.random() * 6.28, r: Math.random(), h: Math.random(), sp: rand(.6, 1.6) }; chaser.add(sp); smoke.push(sp); }
-const cBody = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 16), new THREE.MeshBasicMaterial({ color: 0x050008, transparent: true, opacity: .8, depthWrite: false })); cBody.scale.set(.75, 1.1, .7); cBody.position.y = 1.6; chaser.add(cBody);
-const eyeMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1, .08, .16).multiplyScalar(6), toneMapped: false });
+const chaserU = { uTime: { value: 0 } };
+const cBody = new THREE.Mesh(new THREE.SphereGeometry(1, 40, 28), new THREE.ShaderMaterial({ // living shadow: wobbling dark body with a violet rim
+  transparent: false, uniforms: chaserU,
+  vertexShader: `uniform float uTime; varying vec3 vN; varying vec3 vV; varying float vW;
+    void main(){ vec3 p = position; float w = sin(p.y * 5. + uTime * 4.) * .06 + sin(p.x * 7. - uTime * 3.) * .04 + sin(atan(p.z, p.x) * 6. + uTime * 5.) * .05 * (1. - p.y);
+      p += normal * w; vW = w; vec4 mv = modelViewMatrix * vec4(p, 1.); vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }`,
+  fragmentShader: `varying vec3 vN; varying vec3 vV; varying float vW;
+    void main(){ float f = pow(1. - abs(dot(vN, vV)), 2.2); vec3 c = mix(vec3(.006, .002, .01), vec3(.11, .025, .19), pow(f, 3.)) + vW * .06; gl_FragColor = vec4(c, 1.); }` }));
+cBody.scale.set(.75, 1.1, .7); cBody.position.y = 1.6; chaser.add(cBody);
+const eyeMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1, .03, .02).multiplyScalar(2.6), toneMapped: false });
 const eyes = [];
 for (const x of [-.32, .32]) { const e = new THREE.Mesh(G.sphere, eyeMat); e.scale.set(.15, .06, .05); e.position.set(x, 2.15, -.72); e.rotation.z = x > 0 ? -.3 : .3; chaser.add(e); eyes.push(e); }
 const arms = [];
@@ -1227,7 +1236,7 @@ function update(dt, t) {
   for (const sp of smoke) { const u = sp.userData; u.h += dt * u.sp * .5; if (u.h > 1) { u.h = 0; u.a = Math.random() * 6.28; u.r = Math.random(); }
     const rr = (.35 + u.r * .7) * (1 + u.h * .3); sp.position.set(Math.cos(u.a + t) * rr, .15 + u.h * 1.6, Math.sin(u.a + t) * rr * .6 - u.h * .3);
     sp.scale.setScalar(.55 + u.h * .7); sp.material.opacity = (1 - u.h) * .6 * fade; }
-  cBody.scale.set(.75 + Math.sin(t * 6) * .04, 1.1 + Math.sin(t * 5) * .06, .7);
+  cBody.scale.set(.75 + Math.sin(t * 6) * .04, 1.1 + Math.sin(t * 5) * .06, .7); chaserU.uTime.value = t;
   for (const a of arms) { a.rotation.x = -1.1 - close * .7 + Math.sin(t * 9 + a.userData.side) * .25; a.rotation.z = -a.userData.side * (.35 - close * .2); }
   const blink = Math.sin(t * 3.1) > .985 ? .1 : 1; eyes.forEach(e => e.scale.y = .06 * blink);
   chaserLight.intensity = .4 + close * 2.2;
