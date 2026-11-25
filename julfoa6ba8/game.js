@@ -1,4 +1,4 @@
-// OD Band — Anksiyete'den Kaç  (three.js endless runner)
+// OD Band — Burdayım  (three.js endless runner)
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
@@ -31,8 +31,6 @@ const upTR = t => t.toLocaleUpperCase('tr-TR');
 const SONGS = [
   { id: 'burdayim', file: 'audio/burdayim.mp3', title: 'Burdayım', artist: 'OD Band', world: 'beach', word: 'BURDAYIM',
     chorus: [[47, 68], [118, 138], [138, 148]] },
-  { id: 'anksiyete', file: 'audio/anksiyete.mp3', title: 'Anksiyete', artist: 'Melis Karaduman & OD Band', world: 'night', word: 'ANKSİYETE',
-    chorus: [[28, 48], [84, 104], [104, 140], [140, 167]] },
 ];
 const WORLDS = {
   green: { fog: 0xd6e2cf, fogNear: 50, fogFar: 240, skyTop: 0x3a6fc0, skyMid: 0x9cc4e4, skyBot: 0xf6e7c4, sun: 0xfff0d2, sunI: 2.9, hemiSky: 0xdcefff, hemiGround: 0x56703a, hemiI: 1.15, sea: 0x5f8a3e, bloom: .3, stars: 0, fill: .45, spec: 0x000000 },
@@ -160,8 +158,8 @@ T.checklist = canvasTex(256, 320, (g, w, h) => { g.fillStyle = '#f6f2ea'; g.fill
   ['prova', 'mail at', 'uyu (?)', 'su iç', 'stüdyo', 'faturalar', 'nefes al', '...'].forEach((s, i) => { g.strokeStyle = '#222'; g.lineWidth = 3; g.strokeRect(18, 74 + i * 30, 18, 18); g.fillText(s, 46, 90 + i * 30); if (i === 0) { g.beginPath(); g.moveTo(20, 82); g.lineTo(27, 90); g.lineTo(38, 72); g.stroke(); } }); });
 function tabTex(label) { return canvasTex(512, 300, (g, w, h) => { g.fillStyle = '#2a2140'; rr(g, 0, 30, w, h - 30, 18); g.fill(); g.fillStyle = '#3a2f58'; rr(g, 16, 0, 230, 54, 14); g.fill(); g.fillStyle = '#e8e2ff'; g.font = '26px Manrope, sans-serif'; g.fillText(label.tab, 40, 36); g.fillStyle = '#ff5f8a'; g.font = '30px Anton, Impact'; g.fillText('✕', 210, 38); g.fillStyle = '#fff'; g.font = '58px Anton, Impact'; g.textAlign = 'center'; g.fillText(label.big, w / 2, 170); g.font = '26px Manrope, sans-serif'; g.fillStyle = 'rgba(255,255,255,.7)'; g.fillText(label.small, w / 2, 230); }); }
 function rr(g, x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
-const TABS = [{ tab: 'yeni sekme', big: 'KAFAMDA BİN SEKME', small: '999+ sekme açık' }, { tab: 'kalp.exe', big: '148 BPM', small: 'uyku yok gündeminde' }, { tab: 'takvim', big: 'GEÇ KALDIN', small: 'geç kalmışlık hissi' }, { tab: 'loop.mp4', big: 'BAŞA SAR', small: 'bir filmi loop’a al' }, { tab: 'bildirim', big: 'YOKLAMA', small: 'dürtme, kemirme' }, { tab: 'misafir', big: 'DAVET ETMEDİM', small: 'evde bir misafir var' }].map(tabTex);
-T.notif = canvasTex(512, 128, (g, w, h) => { g.fillStyle = 'rgba(30,24,48,.95)'; rr(g, 0, 0, w, h, 30); g.fill(); g.fillStyle = '#ff3b6b'; g.beginPath(); g.arc(64, 64, 34, 0, 7); g.fill(); g.fillStyle = '#fff'; g.font = '46px Anton, Impact'; g.textAlign = 'center'; g.fillText('!', 64, 80); g.textAlign = 'left'; g.font = '40px Anton, Impact'; g.fillText('99+ BİLDİRİM', 120, 62); g.font = '24px Manrope, sans-serif'; g.fillStyle = 'rgba(255,255,255,.7)'; g.fillText('Anksiyete seni etiketledi', 120, 98); });
+const TABS = [{ tab: 'od band', big: 'BURDAYIM', small: 'şimdi dinle' }, { tab: 'konser', big: 'OD BAND', small: 'bu akşam sahnede' }, { tab: 'playlist', big: 'KANADA', small: 'OD Band' }, { tab: 'playlist', big: 'EMİNÖNÜ', small: 'OD Band' }].map(tabTex);
+T.notif = canvasTex(512, 128, (g, w, h) => { g.fillStyle = 'rgba(30,24,48,.95)'; rr(g, 0, 0, w, h, 30); g.fill(); g.fillStyle = '#ff3b6b'; g.beginPath(); g.arc(64, 64, 34, 0, 7); g.fill(); g.fillStyle = '#fff'; g.font = '46px Anton, Impact'; g.textAlign = 'center'; g.fillText('!', 64, 80); g.textAlign = 'left'; g.font = '40px Anton, Impact'; g.fillText('99+ BİLDİRİM', 120, 62); g.font = '24px Manrope, sans-serif'; g.fillStyle = 'rgba(255,255,255,.7)'; g.fillText('OD Band yeni şarkı paylaştı', 120, 98); });
 T.ecg = canvasTex(512, 128, (g, w, h) => { g.strokeStyle = '#ff2d6a'; g.lineWidth = 7; g.shadowColor = '#ff2d6a'; g.shadowBlur = 12; g.beginPath(); let x = 0; g.moveTo(0, 70); while (x < w) { g.lineTo(x + 40, 70); g.lineTo(x + 50, 30); g.lineTo(x + 62, 115); g.lineTo(x + 72, 15); g.lineTo(x + 84, 70); x += 128; } g.stroke(); });
 T.glow = canvasTex(64, 64, (g, w, h) => { const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(.3, 'rgba(255,255,255,.5)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h); });
 T.smoke = canvasTex(64, 64, (g, w, h) => { const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,.9)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h); });
@@ -455,21 +453,86 @@ function ensureCrowdGeo() {
   }
   return crowdGeo;
 }
-function crowd(seg, side, a, b) {
-  ensureCrowdGeo();
-  const rows = MOBILE ? 3 : 5, per = Math.floor((b - a) / 1.15) * rows;
-  const im = new THREE.InstancedMesh(crowdGeo, M2.crowd, per); const m = new THREE.Matrix4(), q = new THREE.Quaternion(), c = new THREE.Color();
-  let i = 0;
-  for (let r = 0; r < rows; r++) for (let s = a + rand(0, .6); s < b && i < per; s += rand(.9, 1.4)) {
-    const lat = side * (ROAD_W / 2 + 1.5 + r * 1.9 + rand(-.4, .4));
-    q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), side > 0 ? Math.PI / 2 + rand(-.4, .4) : -Math.PI / 2 + rand(-.4, .4));
-    m.compose(new THREE.Vector3(lat, 0, -s), q, new THREE.Vector3(1, rand(.9, 1.12), 1)); im.setMatrixAt(i, m);
-    im.setColorAt(i, c.setHSL(rand(0, 1), rand(.15, .5), rand(.08, .28))); i++;
+// ---------------- crowd: real low-poly people (Quaternius "Man" / "Woman Casual", CC0) baked into static poses
+// each person flips between two poses of a clip (clap in/out, jump crouch/air) → looks alive with zero skinning cost
+const CROWD = { kinds: [], groups: [] };
+const crowdSignTex = ['OD BAND', 'BURDAYIM ♥', 'OD ♥', 'EYLÜL!', 'GÜNEŞ!', 'UMAY!', 'SUDE!', 'ÖYKÜ!'].map(t => canvasTex(256, 144, g => {
+  g.fillStyle = pick(['#ffcf4a', '#ffffff', '#ff5f8a', '#4de1ff']); g.fillRect(0, 0, 256, 144); g.strokeStyle = '#140a16'; g.lineWidth = 8; g.strokeRect(6, 6, 244, 132);
+  g.fillStyle = t.startsWith('OD') ? '#c4142c' : '#140a16'; let fs = 70; g.font = `${fs}px Anton, Impact`; const w = g.measureText(t).width; if (w > 225) { fs = Math.floor(fs * 225 / w); g.font = `${fs}px Anton, Impact`; }
+  g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(t, 128, 76); }));
+const crowdSignGeo = (() => { const board = new THREE.BoxGeometry(.78, .44, .02); board.translate(0, 2.25, .12); const stick = new THREE.BoxGeometry(.03, .7, .03); stick.translate(0, 1.85, .12); return { board, stick }; })();
+function addBounce(mat, amp, speed = 6.5) {
+  mat.onBeforeCompile = sh => { sh.uniforms.uTime = crowdTime; sh.vertexShader = 'uniform float uTime;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>\n  transformed.y += abs(sin(uTime * ${speed.toFixed(1)} + float(gl_InstanceID) * 1.37)) * ${amp.toFixed(3)};`); };
+  mat.customProgramCacheKey = () => 'bounce' + amp + speed; return mat;
+}
+function loadCrowdModels() {
+  const files = ['models/crowd/man.glb', 'models/crowd/woman.glb'];
+  return Promise.all(files.map(f => new Promise(res => loader.load(f, g => { try { CROWD.kinds.push(bakeKind(g)); } catch (e) { console.warn('crowd bake', e); } res(); }, undefined, () => res()))));
+}
+function bakeKind(gltf) {
+  const root = gltf.scene, mixer = new THREE.AnimationMixer(root);
+  const clip = n => gltf.animations.find(c => c.name.toLowerCase().includes(n));
+  const pairs = [[['clapping', .12], ['clapping', .42]], [['jump', .18], ['jump', .48]], [['clapping', .62], ['clapping', .9]]];
+  const mats = new Map(); const mat = m => { if (!mats.has(m)) mats.set(m, addBounce(new THREE.MeshStandardMaterial({ color: m.color, roughness: .85, flatShading: true }), .12, 3.3)); return mats.get(m); };
+  let norm = null;
+  const bake = (name, frac) => {
+    const c = clip(name) || gltf.animations[0]; mixer.stopAllAction(); const a = mixer.clipAction(c); a.reset().play(); mixer.setTime(frac * c.duration); root.updateMatrixWorld(true);
+    const parts = [];
+    root.traverse(o => { if (!o.isSkinnedMesh) return; o.skeleton.update();
+      const pos = o.geometry.attributes.position, arr = new Float32Array(pos.count * 3), v = new THREE.Vector3();
+      for (let i = 0; i < pos.count; i++) { v.fromBufferAttribute(pos, i); o.applyBoneTransform(i, v); v.applyMatrix4(o.matrixWorld); arr[i * 3] = v.x; arr[i * 3 + 1] = v.y; arr[i * 3 + 2] = v.z; }
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(arr, 3)); if (o.geometry.index) g.setIndex(o.geometry.index.clone());
+      parts.push({ geo: g, mat: mat(o.material) }); });
+    if (!norm) { const b = new THREE.Box3(); parts.forEach(p => { p.geo.computeBoundingBox(); b.union(p.geo.boundingBox); }); const k = 1.68 / (b.max.y - b.min.y); norm = { k, cx: (b.min.x + b.max.x) / 2, cz: (b.min.z + b.max.z) / 2, y0: b.min.y }; }
+    parts.forEach(p => { p.geo.translate(-norm.cx, -norm.y0, -norm.cz); p.geo.scale(norm.k, norm.k, norm.k); p.geo.computeVertexNormals(); });
+    return parts;
+  };
+  return { pairs: pairs.map(([A, B]) => [bake(...A), bake(...B)]) };
+}
+// spots: [{x, z, yaw}] in the parent's local space. Returns a Group (add it to the parent yourself).
+function buildCrowd(spots, signShare = .14) {
+  const group = new THREE.Group(); group.userData.toggles = [];
+  if (!CROWD.kinds.length) { // models not loaded yet: simple capsules
+    const im = new THREE.InstancedMesh(ensureCrowdGeo(), M2.crowd, spots.length); const m = new THREE.Matrix4(), q = new THREE.Quaternion(), c = new THREE.Color();
+    spots.forEach((p, i) => { q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), p.yaw); m.compose(new THREE.Vector3(p.x, 0, p.z), q, new THREE.Vector3(1, rand(.9, 1.1), 1)); im.setMatrixAt(i, m); im.setColorAt(i, c.setHSL(rand(0, 1), rand(.15, .5), rand(.1, .3))); });
+    im.frustumCulled = false; group.add(im); return group;
   }
-  im.count = i; im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true;
-  im.castShadow = false; im.frustumCulled = false; seg.group.add(im);
-  // phone lights
-  const pts = []; for (let k = 0; k < i / 6; k++) pts.push(side * (ROAD_W / 2 + 1.5 + rand(0, 8)), rand(1.7, 2.0), -rand(a, b));
+  const buckets = new Map(); const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), c = new THREE.Color(), up = new THREE.Vector3(0, 1, 0);
+  const signs = crowdSignTex.map(() => []);
+  for (const p of spots) {
+    const kind = (Math.random() * CROWD.kinds.length) | 0, pair = (Math.random() * CROWD.kinds[kind].pairs.length) | 0, ph = Math.random() < .5 ? 0 : 1;
+    const key = kind + ':' + pair + ':' + ph; if (!buckets.has(key)) buckets.set(key, { kind, pair, ph, list: [] });
+    q.setFromAxisAngle(up, p.yaw + rand(-.25, .25)); const k = rand(.92, 1.08); m.compose(new THREE.Vector3(p.x, 0, p.z), q, sc.set(k, k * rand(.95, 1.05), k));
+    buckets.get(key).list.push({ mat: m.clone(), col: c.setHSL(rand(0, 1), rand(.15, .55), rand(.62, .95)).clone() });
+    if (Math.random() < signShare) signs[(Math.random() * signs.length) | 0].push(m.clone());
+  }
+  for (const b of buckets.values()) {
+    const poses = CROWD.kinds[b.kind].pairs[b.pair].map(parts => { const meshes = parts.map(pt => { const im = new THREE.InstancedMesh(pt.geo, pt.mat, b.list.length); b.list.forEach((e, i) => { im.setMatrixAt(i, e.mat); im.setColorAt(i, e.col); }); im.frustumCulled = false; group.add(im); return im; }); return meshes; });
+    group.userData.toggles.push({ poses, ph: b.ph, rate: b.pair === 1 ? 2.6 : 3.4 });
+  }
+  signs.forEach((list, ti) => { if (!list.length) return; const mb = addBounce(new THREE.MeshStandardMaterial({ map: crowdSignTex[ti], roughness: .8 }), .14, 3.3), ms = new THREE.MeshStandardMaterial({ color: 0x8a6a48 });
+    const bi = new THREE.InstancedMesh(crowdSignGeo.board, mb, list.length), si = new THREE.InstancedMesh(crowdSignGeo.stick, addBounce(ms, .14, 3.3), list.length);
+    list.forEach((mm, i) => { bi.setMatrixAt(i, mm); si.setMatrixAt(i, mm); }); bi.frustumCulled = si.frustumCulled = false; group.add(bi, si); });
+  CROWD.groups.push(group); return group;
+}
+function crowdTick(t) {
+  CROWD.groups = CROWD.groups.filter(g => g.parent && (g.parent.parent || g.parent === scene));
+  for (const g of CROWD.groups) for (const tg of g.userData.toggles) { const on = (Math.floor(t * tg.rate) + tg.ph) % 2; tg.poses[0].forEach(im => im.visible = on === 0); tg.poses[1].forEach(im => im.visible = on === 1); }
+}
+function crowd(seg, side, a, b) {
+  const near = MOBILE ? 1 : 2, rows = MOBILE ? 3 : 5, spots = [], far = [];
+  const yaw = side > 0 ? -Math.PI / 2 : Math.PI / 2; // face the road
+  for (let r = 0; r < rows; r++) for (let s = a + rand(0, .6); s < b; s += rand(1.0, 1.5)) {
+    const p = { x: side * (ROAD_W / 2 + 1.5 + r * 1.8 + rand(-.3, .3)), z: -s, yaw };
+    (r < near ? spots : far).push(p);
+  }
+  seg.group.add(buildCrowd(spots, .12));
+  if (far.length) { // back rows stay as cheap silhouettes
+    ensureCrowdGeo(); const im = new THREE.InstancedMesh(crowdGeo, M2.crowd, far.length); const m = new THREE.Matrix4(), q = new THREE.Quaternion(), c = new THREE.Color();
+    far.forEach((p, i) => { q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), p.yaw); m.compose(new THREE.Vector3(p.x, 0, p.z), q, new THREE.Vector3(1, rand(.9, 1.12), 1)); im.setMatrixAt(i, m); im.setColorAt(i, c.setHSL(rand(0, 1), rand(.15, .5), rand(.08, .28))); });
+    im.frustumCulled = false; seg.group.add(im);
+  }
+  const pts = []; for (let k = 0; k < (spots.length + far.length) / 6; k++) pts.push(side * (ROAD_W / 2 + 1.5 + rand(0, 8)), rand(1.7, 2.0), -rand(a, b));
   const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
   seg.group.add(new THREE.Points(pg, M2.phones));
 }
@@ -747,7 +810,7 @@ function playAct(g, name, fade = .15, ts = 1) {
   g.cur = a;
 }
 
-// ------------------------------------------------------------------ the chaser: "Anksiyete"
+// ------------------------------------------------------------------ the chaser: a shadow
 const chaser = new THREE.Group(); scene.add(chaser); chaser.scale.setScalar(.66);
 const smokeMat = new THREE.SpriteMaterial({ map: T.smoke, color: 0x07020c, transparent: true, depthWrite: false, opacity: .85 });
 const smoke = [];
@@ -789,7 +852,7 @@ setMuted(muted);
 function playSong(i, from = 0) { songs.forEach(a => a.pause()); songIdx = i; const a = songs[i]; try { a.currentTime = from; } catch (e) { } a.play().catch(() => { }); $('songName').textContent = SONGS[i].title; $('songArtist').textContent = SONGS[i].artist; }
 function nextSong() {
   const n = (songIdx + 1) % SONGS.length; playSong(n); letterIdx = 0; letterGot.clear(); buildLetters();
-  showMsg(SONGS[n].world === 'night' ? 'GECE: ANKSİYETE' : 'BURDAYIM', 2);
+  showMsg('BURDAYIM', 2);
 }
 
 // ------------------------------------------------------------------ world look
@@ -957,7 +1020,7 @@ function selGirl(i, instant) {
 function update(dt, t) {
   if (msgTimer > 0 && (msgTimer -= dt) <= 0) $('msg').classList.remove('show');
   if (hintTimer > 0 && (hintTimer -= dt) <= 0) $('hint').style.opacity = 0;
-  skyU.time.value = t; crowdTime.value = t; seaTex.offset.x = t * .01; seaTex.offset.y = t * .006; M2.water.normalMap.offset.set(t * .02, t * .012); M2.foam.opacity = .4 + Math.sin(t * 1.3) * .2;
+  skyU.time.value = t; crowdTime.value = t; crowdTick(t); seaTex.offset.x = t * .01; seaTex.offset.y = t * .006; M2.water.normalMap.offset.set(t * .02, t * .012); M2.foam.opacity = .4 + Math.sin(t * 1.3) * .2;
   if (worldFade) { worldFade.t += dt / 2.5; look.cur = worldFade.from; applyWorld(worldFade.to, Math.min(1, worldFade.t)); if (worldFade.t >= 1) { look.cur = WORLDS[worldFade.to]; worldFade = null; } }
 
   if (state === 'menu') {
@@ -983,7 +1046,7 @@ function update(dt, t) {
       gigCamera(dt, t); const look2 = segPoint(seg, gig.s0 + 1.5, 0, tmp2);
       chaser.visible = false; $('vign').style.opacity = 0;
       sky.position.copy(camera.position); sun.position.copy(look2).add(SUN_OFF); sun.target.position.copy(look2);
-      fill.position.copy(camera.position).add(tmp.set(0, 2, 0)); fill.target.position.copy(look2); crowdTime.value = t;
+      fill.position.copy(camera.position).add(tmp.set(0, 2, 0)); fill.target.position.copy(look2); crowdTime.value = t; crowdTick(t);
       updateHUD(); return;
     }
   }
@@ -1159,7 +1222,7 @@ function collect(o) {
 function smash(o) { o.mesh.parent?.remove(o.mesh); noise(.2, .2, 3000); score += 25; }
 function stumble(o) {
   if (stumbleT > 0) { gameOver('İki kez tökezleyip düştün.'); return; }
-  stumbleT = 4.5; gap = .2; noise(.25, .25, 1200); sfx(90, .3, 'sawtooth', .08, -40); showMsg('ANKSİYETE YAKLAŞIYOR!', 1.4);
+  stumbleT = 4.5; gap = .2; noise(.25, .25, 1200); sfx(90, .3, 'sawtooth', .08, -40); showMsg('GÖLGE YAKLAŞIYOR!', 1.4);
   lane = clamp(Math.round(lat / LANE) + (lat > o.lane * LANE ? 1 : -1) * 0, -1, 1);
 }
 let lastHud = 0;
@@ -1237,15 +1300,11 @@ function gigStage() {
   return g;
 }
 function gigAudience(s0) {
-  const g = new THREE.Group(); const rows = MOBILE ? 5 : 8, per = rows * 17;
-  const im = new THREE.InstancedMesh(ensureCrowdGeo(), M2.crowd, per); const m = new THREE.Matrix4(), q = new THREE.Quaternion(), c = new THREE.Color(); let i = 0;
-  q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI); // facing the stage
-  for (let r = 0; r < rows; r++) for (let x = -7.6 + (r % 2) * .45; x <= 7.6 && i < per; x += rand(.8, 1.05)) {
-    m.compose(new THREE.Vector3(x + rand(-.15, .15), 0, -(s0 - 1.6 - r * 1.15 + rand(-.2, .2))), q, new THREE.Vector3(1, rand(.9, 1.12), 1)); im.setMatrixAt(i, m);
-    im.setColorAt(i, c.setHSL(rand(0, 1), rand(.15, .5), rand(.08, .3))); i++;
-  }
-  im.count = i; im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; im.frustumCulled = false; g.add(im);
-  const pts = []; for (let k = 0; k < i / 4; k++) pts.push(rand(-7.5, 7.5), rand(1.7, 2.1), -(s0 - 1.6 - rand(0, rows * 1.15)));
+  const g = new THREE.Group(); const rows = MOBILE ? 5 : 8, spots = [];
+  for (let r = 0; r < rows; r++) for (let x = -7.6 + (r % 2) * .45; x <= 7.6; x += rand(.85, 1.1))
+    spots.push({ x: x + rand(-.15, .15), z: -(s0 - 1.7 - r * 1.15 + rand(-.2, .2)), yaw: Math.PI }); // facing the stage
+  g.add(buildCrowd(spots, .2));
+  const pts = []; for (let k = 0; k < spots.length / 9; k++) pts.push(rand(-7.5, 7.5), rand(1.9, 2.2), -(s0 - 3.5 - rand(0, rows * 1.15)));
   const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3)); g.add(new THREE.Points(pg, M2.phones));
   seg.group.add(g); return g;
 }
@@ -1351,7 +1410,7 @@ function frame() {
   setWorld('beach', true);
   requestAnimationFrame(frame);
   await document.fonts.ready;
-  loadProps();
+  loadProps(); loadCrowdModels();
   await loadGirls(p => { $('lbar').style.width = (p * 100) + '%'; $('ltxt').textContent = `karakterler yükleniyor… ${Math.round(p * 100)}%`; });
   // fonts may have arrived after textures were drawn: redraw text textures
   $('loading').classList.add('hide');
