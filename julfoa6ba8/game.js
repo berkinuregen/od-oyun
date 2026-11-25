@@ -348,7 +348,7 @@ function buildSegment(seg, first) {
   cornerWall(seg);
   const arrow = new THREE.Mesh(new THREE.PlaneGeometry(3, 3), new THREE.MeshBasicMaterial({ map: arrowTex(seg.turn), transparent: true, depthWrite: false }));
   arrow.rotation.x = -Math.PI / 2; put(seg, arrow, seg.len - 9, 0, .02);
-  spawnContent(seg, first ? 30 : 16);
+  spawnContent(seg, first ? 30 : 36); // leave a clear run-out after every corner
 }
 function worldAt(seg, s) { return seg.from && s < seg.mid ? seg.from : seg.world; }
 
@@ -479,7 +479,7 @@ function lightTower(seg, s, lat) {
     const col = pick([0xff3d9a, 0x4de1ff, 0xffcf4a, 0x9a6bff, 0xffffff]);
     const lampG = new THREE.Group(); lampG.position.x = (k - 1) * .5; heads.add(lampG);
     const bulb = new THREE.Mesh(G.sphere, new THREE.MeshBasicMaterial({ color: new THREE.Color(col).multiplyScalar(3), toneMapped: false })); bulb.scale.setScalar(.16); lampG.add(bulb);
-    const beam = new THREE.Mesh(M2.beamGeo, new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: .16, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }));
+    const beam = new THREE.Mesh(M2.beamGeo, new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: .1, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }));
     lampG.add(beam); lampG.userData = { ph: rand(0, 6), sp: rand(.5, 1.2) }; seg.objs.push({ t: 'deco', mesh: lampG, s, beam: true });
   }
   put(seg, g, s, lat, 0);
@@ -605,7 +605,7 @@ function spawnContent(seg, startS) {
       else if (Math.random() < .5) { const lo = seg.objs.find(o => o.s === s && o.t === 'low'); if (lo) coinArc(seg, s, lo.lane); }
     }
     if (Math.random() < .07) powerup(seg, s + 6, lanes[2] ?? 0, Math.random() < .55 ? 'sun' : 'mic');
-    if (Math.random() < .16) letter(seg, s + 8, lanes[1] ?? 0);
+    if (Math.random() < .07 && !letterOnTrack()) letter(seg, s + 8, lanes[1] ?? 0);
     s += lerp(19, 11, diff) + rand(0, 6);
   }
 }
@@ -681,10 +681,15 @@ function powerup(seg, s, lane, kind) {
   const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: T.glow, color: kind === 'sun' ? 0xffb040 : 0x9ad5ff, transparent: true, depthWrite: false, opacity: .8 })); halo.scale.setScalar(2.2); g.add(halo);
   put(seg, g, s, lane * LANE, 1.3); seg.objs.push({ t: kind, lane, s, y: 1.3, mesh: g });
 }
+let letterGot = new Set(), lastLetter = -1;
+function letterOnTrack() { for (const sg of segs) for (const o of sg.objs) if (o.t === 'letter' && !o.done) return true; return false; }
 function letter(seg, s, lane) {
-  const word = [...SONGS[songIdx].word]; const ch = word[letterIdx % word.length];
+  const word = [...SONGS[songIdx].word];
+  let left = word.map((_, i) => i).filter(i => !letterGot.has(i)); if (!left.length) return;
+  if (left.length > 1) left = left.filter(i => i !== lastLetter);
+  const idx = pick(left); lastLetter = idx; const ch = word[idx];
   const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: letterTex(ch), transparent: true })); sp.scale.setScalar(1.1);
-  put(seg, sp, s, lane * LANE, 1.3); seg.objs.push({ t: 'letter', ch, lane, s, y: 1.3, mesh: sp });
+  put(seg, sp, s, lane * LANE, 1.3); seg.objs.push({ t: 'letter', ch, idx, lane, s, y: 1.3, mesh: sp });
 }
 
 // ------------------------------------------------------------------ characters
@@ -722,7 +727,7 @@ function makeGirl(i) {
     mixer = new THREE.AnimationMixer(m);
     const run = findClip(tpl.animations, ['runfast', 'run']) || tpl.animations[0];
     const map = { run };
-    for (const k of ['idle', 'jump', 'slide', 'fall', 'reach', 'standup', 'help', 'cheer']) map[k] = findClip(tpl.animations, [k]);
+    for (const k of ['idle', 'jump', 'slide', 'fall', 'reach', 'standup', 'help', 'cheer', 'groove', 'singdance', 'sit']) map[k] = findClip(tpl.animations, [k]);
     for (const k in map) if (map[k]) { actions[k] = mixer.clipAction(map[k]); }
     for (const k of ['jump', 'slide', 'fall', 'standup', 'help']) if (actions[k]) { actions[k].setLoop(THREE.LoopOnce); actions[k].clampWhenFinished = true; }
   } else {
@@ -779,7 +784,7 @@ function setMuted(m) { muted = m; localStorage.setItem('od3_muted', m ? '1' : '0
 setMuted(muted);
 function playSong(i, from = 0) { songs.forEach(a => a.pause()); songIdx = i; const a = songs[i]; try { a.currentTime = from; } catch (e) { } a.play().catch(() => { }); $('songName').textContent = SONGS[i].title; $('songArtist').textContent = SONGS[i].artist; }
 function nextSong() {
-  const n = (songIdx + 1) % SONGS.length; playSong(n); letterIdx = 0; buildLetters();
+  const n = (songIdx + 1) % SONGS.length; playSong(n); letterIdx = 0; letterGot.clear(); buildLetters();
   showMsg(SONGS[n].world === 'night' ? 'GECE: ANKSİYETE' : 'BURDAYIM', 2);
 }
 
@@ -809,7 +814,7 @@ function disposeGroup(g) { g.traverse(o => { if (o.geometry && !Object.values(G)
 
 function newRun() {
   clearTrack(); songIdx = +(params.get('song') || 0); segI = 0; s = 0; genWorld = SONGS[songIdx].world === 'night' ? 'night' : (params.get('biome') || 'green'); setWorld(genWorld, true); clearFriends();
-  speed = 13; lane = 0; lat = 0; py = 0; vy = 0; sliding = false; slideT = 0; turnQ = null; stumbleT = 0; gap = 1; score = 0; picks = 0; dist = 0; magnet = 0; sunT = 0; letterIdx = 0; mult = 1; deadT = 0; fallY = 0;
+  speed = 13; lane = 0; lat = 0; py = 0; vy = 0; sliding = false; slideT = 0; turnQ = null; stumbleT = 0; gap = 1; score = 0; picks = 0; dist = 0; magnet = 0; sunT = 0; letterIdx = 0; letterGot.clear(); lastLetter = -1; gigPending = false; gig = null; mult = 1; deadT = 0; fallY = 0;
   for (let i = 0; i < 4; i++) addSeg(i === 0);
   segI = 0; seg = segs[0]; camYaw = yawOf(seg.dir);
   if (player) scene.remove(player.holder);
@@ -859,7 +864,7 @@ let msgTimer = 0;
 function showMsg(t, d = 1.4) { const m = $('msg'); m.textContent = t; m.classList.add('show'); msgTimer = d; }
 let hintTimer = 0;
 function hint(t, d) { $('hint').textContent = t; $('hint').style.opacity = 1; hintTimer = d; }
-function buildLetters() { const w = [...SONGS[songIdx].word]; $('letters').innerHTML = w.map((c, i) => `<span class="${i < letterIdx ? 'on' : ''}">${c}</span>`).join(''); }
+function buildLetters() { const w = [...SONGS[songIdx].word]; $('letters').innerHTML = w.map((c, i) => `<span class="${letterGot.has(i) ? 'on' : ''}">${c}</span>`).join(''); }
 function flash(col = '#fff', a = .6) { const f = $('flash'); f.style.background = col; f.style.transition = 'none'; f.style.opacity = a; requestAnimationFrame(() => { f.style.transition = 'opacity .6s'; f.style.opacity = 0; }); }
 
 // ------------------------------------------------------------------ input
@@ -962,6 +967,17 @@ function update(dt, t) {
   }
   menuStage.visible = false; chaser.visible = true;
   if (state === 'pause') return;
+  if (state === 'gig') { // concert: band on stage, camera in the crowd
+    updateGig(dt, t);
+    if (gig) {
+      const far = camera.aspect < .8 ? 13.5 : 9.5; const front = segPoint(seg, gig.s0 - far, 0, tmp), look2 = segPoint(seg, gig.s0 + 1.5, 0, tmp2);
+      camera.position.lerp(front.setY(2.6), Math.min(1, dt * 3)); camera.lookAt(look2.setY(1.8));
+      chaser.visible = false; $('vign').style.opacity = 0; $('chaseBar').style.width = '8%';
+      sky.position.copy(camera.position); sun.position.copy(look2).add(SUN_OFF); sun.target.position.copy(look2);
+      fill.position.copy(camera.position).add(tmp.set(0, 2, 0)); fill.target.position.copy(look2);
+      updateHUD(); return;
+    }
+  }
 
   const running = state === 'run';
   if (running) {
@@ -996,6 +1012,7 @@ function update(dt, t) {
     if (sunT > 0) { sunT -= dt; gap = Math.min(1, gap + dt * .6); }
     // collisions
     collide(dt);
+    if (gigPending && canStartGig()) startGig();
   } else if (state === 'down' || state === 'over') {
     downT += dt;
     const k = Math.max(0, 1 - downT / .45); s += speed * k * k * dt * .6; // short skid
@@ -1069,8 +1086,8 @@ function update(dt, t) {
   chaser.rotation.y = player.holder.rotation.y;
   const close = 1 - clamp(gap, 0, 1);
   for (const sp of smoke) { const u = sp.userData; u.h += dt * u.sp * .5; if (u.h > 1) { u.h = 0; u.a = Math.random() * 6.28; u.r = Math.random(); }
-    const rr = (.4 + u.r * 1.0) * (1 + u.h * .6); sp.position.set(Math.cos(u.a + t) * rr, .2 + u.h * 2.8, Math.sin(u.a + t) * rr * .7 + u.h * 1.5);
-    sp.scale.setScalar(.7 + u.h * 1.4); sp.material.opacity = (1 - u.h) * .8 * fade; }
+    const rr = (.35 + u.r * .7) * (1 + u.h * .3); sp.position.set(Math.cos(u.a + t) * rr, .15 + u.h * 1.6, Math.sin(u.a + t) * rr * .6 - u.h * .3);
+    sp.scale.setScalar(.55 + u.h * .7); sp.material.opacity = (1 - u.h) * .6 * fade; }
   cBody.scale.set(.75 + Math.sin(t * 6) * .04, 1.1 + Math.sin(t * 5) * .06, .7);
   for (const a of arms) { a.rotation.x = -1.1 - close * .7 + Math.sin(t * 9 + a.userData.side) * .25; a.rotation.z = -a.userData.side * (.35 - close * .2); }
   const blink = Math.sin(t * 3.1) > .985 ? .1 : 1; eyes.forEach(e => e.scale.y = .06 * blink);
@@ -1086,7 +1103,7 @@ function update(dt, t) {
     if (o.t === 'coin') m.rotation.y += dt * 4;
     else if (o.t === 'sun' || o.t === 'mic') { m.rotation.y += dt * 2; m.position.y = o.y + Math.sin(t * 3 + o.s) * .15; }
     else if (o.t === 'letter') m.position.y = o.y + Math.sin(t * 3 + o.s) * .12;
-    else if (o.beam) { const u = m.userData; m.rotation.z = Math.sin(t * u.sp + u.ph) * .7; m.rotation.x = .35 + Math.sin(t * u.sp * .7 + u.ph) * .35; }
+    else if (o.beam) { const u = m.userData; m.rotation.z = Math.sin(t * u.sp + u.ph) * .45; m.rotation.x = Math.PI + Math.sin(t * u.sp * .7 + u.ph) * .3; }
     else if (o.t === 'deco') m.position.y += Math.sin(t * 1.5 + m.userData.float) * .004;
     else if (o.t === 'low' && m.userData.shake) m.rotation.z = Math.sin(t * 40) * .04;
     else if (o.t === 'high' && m.userData.ball) m.userData.ball.position.y = 2.7 + Math.abs(Math.sin(t * 2.2 + o.s)) * .9;
@@ -1127,7 +1144,8 @@ function collect(o) {
   else if (o.t === 'mic') { magnet = 9; showMsg('MİKROFON!', 1.2); sfx(880, .35, 'sawtooth', .04, 700); }
   else if (o.t === 'letter') {
     const word = [...SONGS[songIdx].word];
-    if (o.ch === word[letterIdx]) { letterIdx++; sfx(990, .12, 'triangle', .06, 200); if (letterIdx >= word.length) { score += 1000; showMsg(SONGS[songIdx].title.toUpperCase() + ' +1000', 2); flash('#ffcf4a', .4); letterIdx = 0; } buildLetters(); }
+    if (!letterGot.has(o.idx)) { letterGot.add(o.idx); sfx(990, .12, 'triangle', .06, 200); buildLetters();
+      if (letterGot.size >= word.length) { letterGot.clear(); setTimeout(buildLetters, 1500); sfx(523, .3, 'triangle', .07); setTimeout(() => sfx(784, .4, 'triangle', .07), 150); if (canStartGig()) startGig(); else { gigPending = true; showMsg(upTR(SONGS[songIdx].title) + '!', 1.6); } } }
   }
 }
 function smash(o) { o.mesh.parent?.remove(o.mesh); noise(.2, .2, 3000); score += 25; }
@@ -1142,6 +1160,124 @@ function updateHUD() {
   $('picks').textContent = picks;
   let p = ''; if (sunT > 0) p += `<div>☀️ Güneş ${Math.ceil(sunT)}</div>`; if (magnet > 0) p += `<div>🎤 Mikrofon ${Math.ceil(magnet)}</div>`;
   if ($('power').innerHTML !== p) $('power').innerHTML = p;
+}
+
+// ------------------------------------------------------------------ BURDAYIM complete → 10 s OD Band gig on a pop-up stage
+const GIG_LEN = 10;
+// stage spots (lat, s-offset from stage front) — index = band member
+const GIG_SPOTS = [[1.9, 3.2, 'drums'], [-.3, .9, 'vocal'], [3.9, 1.4, 'bass'], [-2.4, 1.3, 'guitar'], [-4.4, 1.7, 'guitar']];
+let gig = null;
+const GM = {
+  wood: new THREE.MeshStandardMaterial({ color: 0x2a2224, roughness: .7 }),
+  gtrBody: [0xc4142c, 0x111111, 0xf2efe6, 0x2a4fa8, 0xd8a24a].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: .35, metalness: .1 })),
+  neck: new THREE.MeshStandardMaterial({ color: 0x6b4a32, roughness: .6 }),
+  chrome: new THREE.MeshStandardMaterial({ color: 0xdadde2, metalness: .9, roughness: .25 }),
+  drum: new THREE.MeshStandardMaterial({ color: 0xc4142c, roughness: .4 }),
+  skin: new THREE.MeshStandardMaterial({ color: 0xf3efe6, roughness: .8 }),
+  cymbal: new THREE.MeshStandardMaterial({ color: 0xd8b04a, metalness: .85, roughness: .3 }),
+};
+function guitarProp(i) {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(.19, .21, .06, 20), GM.gtrBody[i % GM.gtrBody.length]); body.rotation.x = Math.PI / 2; body.scale.set(1, 1, 1.35); g.add(body);
+  const neck = new THREE.Mesh(G.box, GM.neck); neck.scale.set(.05, .62, .03); neck.position.set(0, .45, 0); g.add(neck);
+  const head = new THREE.Mesh(G.box, GM.neck); head.scale.set(.08, .14, .03); head.position.set(0, .82, 0); g.add(head);
+  return g;
+}
+function drumKit() {
+  const g = new THREE.Group();
+  const kick = new THREE.Mesh(new THREE.CylinderGeometry(.32, .32, .38, 20), GM.drum); kick.rotation.x = Math.PI / 2; kick.position.set(0, .32, -.55); g.add(kick);
+  const kickFace = new THREE.Mesh(new THREE.CircleGeometry(.3, 20), new THREE.MeshStandardMaterial({ map: T.od })); kickFace.position.set(0, .32, -.36); g.add(kickFace);
+  for (const [x, y, z, r] of [[-.28, .62, -.45, .14], [.28, .62, -.45, .14], [-.42, .5, -.15, .16], [.45, .45, -.1, .19]]) { const t = new THREE.Mesh(new THREE.CylinderGeometry(r, r, .16, 16), GM.drum); t.position.set(x, y, z); t.rotation.x = .35; g.add(t); const sk = new THREE.Mesh(new THREE.CircleGeometry(r * .95, 16), GM.skin); sk.rotation.x = -Math.PI / 2 + .35; sk.position.set(x, y + .085, z - .03); g.add(sk); }
+  for (const [x, z] of [[-.65, -.3], [.7, -.35]]) { const st = new THREE.Mesh(G.cyl, GM.chrome); st.scale.set(.012, .95, .012); st.position.set(x, .48, z); g.add(st); const cy = new THREE.Mesh(new THREE.CylinderGeometry(.24, .24, .01, 20), GM.cymbal); cy.position.set(x, .97, z); cy.rotation.z = x > 0 ? -.2 : .2; g.add(cy); }
+  const seat = new THREE.Mesh(new THREE.CylinderGeometry(.17, .17, .08, 14), GM.wood); seat.position.set(0, .48, .25); g.add(seat);
+  const leg = new THREE.Mesh(G.cyl, GM.chrome); leg.scale.set(.02, .45, .02); leg.position.set(0, .23, .25); g.add(leg);
+  return g;
+}
+function micStand() { const g = new THREE.Group(); const p = new THREE.Mesh(G.cyl, GM.chrome); p.scale.set(.012, 1.45, .012); p.position.y = .72; g.add(p); const b = new THREE.Mesh(new THREE.CylinderGeometry(.14, .14, .02, 14), GM.chrome); g.add(b); const m = new THREE.Mesh(G.sphere, new THREE.MeshStandardMaterial({ color: 0x333333, metalness: .6, roughness: .4 })); m.scale.setScalar(.04); m.position.set(0, 1.47, .05); g.add(m); return g; }
+// attach a prop to a bone so it moves with the body (prop sizes are in metres)
+function attachToBone(girl, boneName, prop, pos, rot) {
+  let bone = null; girl.holder.traverse(o => { if (!bone && o.isBone && o.name === boneName) bone = o; });
+  if (!bone) { girl.inner.add(prop); prop.position.set(pos[0], pos[1] + 1.1, pos[2]); return; }
+  girl.holder.updateMatrixWorld(true);
+  const ws = new THREE.Vector3(); bone.getWorldScale(ws);
+  bone.add(prop); prop.scale.setScalar(1 / ws.x); prop.position.set(pos[0] / ws.x, pos[1] / ws.x, pos[2] / ws.x); prop.rotation.set(...rot);
+}
+function gigStage() {
+  const g = new THREE.Group(), W = ROAD_W + 5, D = 5;
+  const deck = new THREE.Mesh(G.box, GM.wood); deck.scale.set(W, .9, D); deck.position.set(0, .45, -D / 2); deck.receiveShadow = true; g.add(deck);
+  const riser = new THREE.Mesh(G.box, GM.wood); riser.scale.set(2.2, .45, 1.8); riser.position.set(1.9, 1.12, -3.4); g.add(riser);
+  const screen = new THREE.Mesh(new THREE.PlaneGeometry(W - 1, 3.6), new THREE.MeshBasicMaterial({ map: T.screen, toneMapped: false, color: 0xbbbbbb })); screen.position.set(0, 3.0, -D - .1); g.add(screen);
+  for (const x of [-W / 2 - .2, W / 2 + .2]) { const sp = new THREE.Mesh(new THREE.BoxGeometry(1.2, 3.4, 1), [M.ampSide, M.ampSide, M.ampSide, M.ampSide, M.amp, M.ampSide]); sp.position.set(x, 1.7, -1.2); sp.castShadow = true; g.add(sp); }
+  const roof = new THREE.Mesh(G.box, M.metal); roof.scale.set(W + 1, .3, .3); roof.position.set(0, 5.2, -.6); g.add(roof);
+  for (const x of [-W / 2 - .2, W / 2 + .2]) { const p = new THREE.Mesh(G.box, M.metal); p.scale.set(.25, 5.2, .25); p.position.set(x, 2.6, -.6); g.add(p); }
+  g.userData.beams = [];
+  for (let i = 0; i < 6; i++) { const col = [0xff3d9a, 0x4de1ff, 0xffcf4a][i % 3]; const lg = new THREE.Group(); lg.position.set(-W / 2 + 1 + i * (W - 2) / 5, 5.0, -.6); g.add(lg);
+    const bulb = new THREE.Mesh(G.sphere, new THREE.MeshBasicMaterial({ color: new THREE.Color(col).multiplyScalar(3), toneMapped: false })); bulb.scale.setScalar(.13); lg.add(bulb);
+    const beam = new THREE.Mesh(M2.beamGeo, new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: .1, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })); beam.scale.set(.5, .35, .5); lg.add(beam); lg.userData.ph = i; g.userData.beams.push(lg); }
+  return g;
+}
+function canStartGig() { return seg.len - s > 46 && s > 6; }
+function startGig() {
+  state = 'gig'; gigPending = false;
+  const s0 = s + 9; // stage front
+  for (const o of seg.objs) if (o.mesh && o.s > s - 2 && o.s < s0 + 30) { o.mesh.visible = false; o.done = true; }
+  const stage = gigStage(); put(seg, stage, s0, 0, 0);
+  gig = { t: 0, s0, stage, band: [], props: [], savedSpeed: speed, startS: s, startLat: lat };
+  score += 1000; showMsg('OD BAND KONSERİ!', 2.2); flash('#ffcf4a', .45); $('mult').classList.add('hide');
+  for (let i = 0; i < NGIRLS; i++) {
+    const girl = i === sel ? player : makeGirl(i); if (i !== sel) scene.add(girl.holder);
+    const [gl, gs, role] = GIG_SPOTS[i];
+    const target = segPoint(seg, s0 + gs, gl); target.y = role === 'drums' ? 1.35 : .9;
+    if (i !== sel) { const from = segPoint(seg, s0 + gs, gl < 0 ? -9 : 9); from.y = .9; girl.holder.position.copy(from); playAct(girl, 'run', .1, 1); }
+    girl.gig = { target, role, from: girl.holder.position.clone(), arrived: false };
+    gig.band.push(girl);
+  }
+  // instruments
+  const kit = drumKit(); const kp = segPoint(seg, s0 + 3.2 - .05, 1.9); kit.position.copy(kp).setY(1.35); kit.rotation.y = yawOf(seg.dir) + Math.PI; scene.add(kit); gig.props.push(kit);
+  const mic = micStand(); const mp = segPoint(seg, s0 + .45, -.3); mic.position.copy(mp).setY(.9); scene.add(mic); gig.props.push(mic);
+}
+let gigPending = false;
+function updateGig(dt, t) {
+  gig.t += dt; const T0 = gig.t;
+  const face = yawOf(seg.dir) + Math.PI; // band faces the audience (back toward where we came from)
+  for (const g of gig.band) {
+    const st = g.gig; g.mixer?.update(dt);
+    if (!st.arrived) {
+      const to = tmp2.copy(st.target).sub(g.holder.position); const d = to.length();
+      if (d < .1 || T0 > 2.2) { g.holder.position.copy(st.target); st.arrived = true; startPlaying(g); }
+      else { to.normalize(); g.holder.position.addScaledVector(to, Math.min(d, 6 * dt)); to.y = 0; if (to.lengthSq() > .001) g.holder.rotation.y = Math.atan2(-to.x, -to.z); }
+    } else g.holder.rotation.y = angLerp(g.holder.rotation.y, face, Math.min(1, dt * 6));
+    if (st.arrived && st.role === 'drums' && g.bones) { // procedural drumming on top of the sitting pose
+      const k = Math.sin(t * 14), k2 = Math.sin(t * 14 + Math.PI);
+      if (g.bones.r) g.bones.r.rotation.x += k * .35; if (g.bones.l) g.bones.l.rotation.x += k2 * .35;
+    }
+    if (st.arrived && (st.role === 'guitar' || st.role === 'bass') && g.bones?.r) g.bones.r.rotation.z += Math.sin(t * 16) * .18; // strumming
+  }
+  for (const b of gig.stage.userData.beams) { b.rotation.z = Math.sin(t * 1.3 + b.userData.ph) * .5; b.rotation.x = Math.PI + Math.sin(t * .9 + b.userData.ph) * .4; }
+  const left = Math.ceil(GIG_LEN + 1.2 - T0); if (left >= 0 && left <= GIG_LEN) $('hint').textContent = `🎸 KONSER ${left}`, $('hint').style.opacity = 1;
+  score += dt * 40;
+  if (T0 > GIG_LEN + 1.2) endGig();
+}
+function startPlaying(g) {
+  const role = g.gig.role; g.bones = {};
+  g.holder.traverse(o => { if (o.isBone) { if (o.name === 'RightForeArm') g.bones.r = o; if (o.name === 'LeftForeArm') g.bones.l = o; } });
+  if (role === 'drums') { playAct(g, g.actions.sit ? 'sit' : 'idle', .3, 1); const sl = new THREE.Mesh(G.cyl, M.stick), sr = sl.clone(); sl.scale.set(.012, .42, .012); sr.scale.copy(sl.scale);
+    const wl = wrap(sl), wr = wrap(sr); attachToBone(g, 'LeftHand', wl, [0, .08, 0], [1.2, 0, 0]); attachToBone(g, 'RightHand', wr, [0, .08, 0], [1.2, 0, 0]); gig.props.push(wl, wr); }
+  else if (role === 'vocal') playAct(g, g.actions.singdance ? 'singdance' : 'cheer', .3, 1);
+  else { playAct(g, g.actions.groove ? 'groove' : 'idle', .3, rand(.9, 1.05)); const gt = guitarProp(gig.band.indexOf(g)); attachToBone(g, 'Spine01', gt, [0, .02, .17], [0, 0, -1.0]); gig.props.push(gt); }
+}
+function wrap(m) { const g = new THREE.Group(); g.add(m); return g; }
+function endGig() {
+  // the others wave goodbye and vanish, the chosen girl jumps off the stage and keeps running
+  for (const g of gig.band) if (g !== player) scene.remove(g.holder);
+  for (const p of gig.props) p.parent?.remove(p);
+  gig.stage.parent?.remove(gig.stage);
+  flash('#ffffff', .5);
+  s = gig.s0 + 1; lat = 0; lane = 0; py = 0; vy = 0;
+  speed = Math.max(13, gig.savedSpeed * .85); gap = 1; stumbleT = 0;
+  player.holder.rotation.y = yawOf(seg.dir); player.inner.rotation.set(0, Math.PI, 0);
+  playAct(player, 'run', .2, 1.15); gig = null; state = 'run';
+  $('hint').style.opacity = 0; showMsg('KOŞ!', 1);
 }
 
 // ------------------------------------------------------------------ main loop
@@ -1162,7 +1298,7 @@ function frame() {
   $('loading').classList.add('hide');
   if (params.has('sel')) sel = +params.get('sel');
   toMenu();
-  if (params.has('run')) { if (params.get('run')) sel = +params.get('run'); startRun(); if (params.has('sim')) { const n = +params.get('sim'); for (let i = 0; i < n && state === 'run'; i++) { if (params.has('auto')) autopilot(); if (i === n - 12 && params.has('jump')) act('up'); if (i === n - 20 && params.has('slide')) act('down'); update(1 / 60, i / 60); } if (params.has('down')) { gameOver('Test'); for (let i = 0; i < +params.get('down'); i++) update(1 / 60, i / 60); } const d = document.createElement('div'); d.style.cssText = 'position:fixed;top:120px;left:10px;font:14px monospace;background:#000a;padding:6px;z-index:99'; d.textContent = `state=${state} segI=${segI} s=${s.toFixed(1)} len=${seg.len} turn=${seg.turn} turnQ=${turnQ} lane=${lane} lat=${lat.toFixed(2)} dist=${dist.toFixed(0)} reason=${$('overLine').textContent}`; document.body.appendChild(d); } }
+  if (params.has('run')) { if (params.get('run')) sel = +params.get('run'); startRun(); if (params.has('sim')) { const n = +params.get('sim'); for (let i = 0; i < n && state === 'run'; i++) { if (params.has('auto')) autopilot(); if (i === n - 12 && params.has('jump')) act('up'); if (i === n - 20 && params.has('slide')) act('down'); update(1 / 60, i / 60); } if (params.has('gig')) { startGig(); for (let i = 0; i < +params.get('gig'); i++) update(1 / 60, i / 60); } if (params.has('down')) { gameOver('Test'); for (let i = 0; i < +params.get('down'); i++) update(1 / 60, i / 60); } const d = document.createElement('div'); d.style.cssText = 'position:fixed;top:120px;left:10px;font:14px monospace;background:#000a;padding:6px;z-index:99'; d.textContent = `state=${state} segI=${segI} s=${s.toFixed(1)} len=${seg.len} turn=${seg.turn} turnQ=${turnQ} lane=${lane} lat=${lat.toFixed(2)} dist=${dist.toFixed(0)} reason=${$('overLine').textContent}`; document.body.appendChild(d); } }
 })();
 
 function autopilot() {
