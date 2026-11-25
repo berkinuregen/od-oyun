@@ -495,7 +495,8 @@ function loadCrowdModels() {
 function bakeKind(gltf) {
   const root = gltf.scene, mixer = new THREE.AnimationMixer(root);
   const clip = n => gltf.animations.find(c => c.name.toLowerCase().includes(n));
-  const pairs = [[['clapping', .12], ['clapping', .42]], [['jump', .18], ['jump', .48]], [['clapping', .62], ['clapping', .9]]];
+  const pairs = [[['clapping', .12], ['clapping', .42]], [['jump', .18], ['jump', .48]]];
+  const crowdMat = CROWD.mat || (CROWD.mat = addBounce(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .85, flatShading: true }), .12, 3.3));
   const mats = new Map(); const mat = m => { if (!mats.has(m)) mats.set(m, addBounce(new THREE.MeshStandardMaterial({ color: m.color, roughness: .85, flatShading: true }), .12, 3.3)); return mats.get(m); };
   let norm = null;
   const bake = (name, frac) => {
@@ -505,10 +506,13 @@ function bakeKind(gltf) {
       const pos = o.geometry.attributes.position, arr = new Float32Array(pos.count * 3), v = new THREE.Vector3();
       for (let i = 0; i < pos.count; i++) { v.fromBufferAttribute(pos, i); o.applyBoneTransform(i, v); v.applyMatrix4(o.matrixWorld); arr[i * 3] = v.x; arr[i * 3 + 1] = v.y; arr[i * 3 + 2] = v.z; }
       const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(arr, 3)); if (o.geometry.index) g.setIndex(o.geometry.index.clone()); g.userData.keep = true;
+      const col = o.material.color || new THREE.Color(1, 1, 1); const ca = new Float32Array(pos.count * 3); for (let i = 0; i < pos.count; i++) { ca[i * 3] = col.r; ca[i * 3 + 1] = col.g; ca[i * 3 + 2] = col.b; } g.setAttribute('color', new THREE.BufferAttribute(ca, 3));
       parts.push({ geo: g, mat: mat(o.material) }); });
     if (!norm) { const b = new THREE.Box3(); parts.forEach(p => { p.geo.computeBoundingBox(); b.union(p.geo.boundingBox); }); const k = 1.68 / (b.max.y - b.min.y); norm = { k, cx: (b.min.x + b.max.x) / 2, cz: (b.min.z + b.max.z) / 2, y0: b.min.y }; }
     parts.forEach(p => { p.geo.translate(-norm.cx, -norm.y0, -norm.cz); p.geo.scale(norm.k, norm.k, norm.k); p.geo.computeVertexNormals(); });
-    return parts;
+    // one draw per pose: merge all body parts, material colours baked into vertex colours
+    const merged = mergeGeometries(parts.map(p => p.geo.index ? p.geo.toNonIndexed() : p.geo)); merged.userData.keep = true;
+    return [{ geo: merged, mat: crowdMat }];
   };
   return { pairs: pairs.map(([A, B]) => [bake(...A), bake(...B)]) };
 }
@@ -673,8 +677,8 @@ function lamp(seg, s, lat) {
   put(seg, g, s, lat, 0);
 }
 function overheadLine(seg, s) { // decorative laundry high above the street (out of reach)
-  const rope = new THREE.Mesh(G.cyl, M.rope); rope.scale.set(.015, ROAD_W + 3, .015); rope.rotation.z = Math.PI / 2; put(seg, rope, s, 0, 4.6);
-  for (let i = 0; i < 4; i++) { const c = new THREE.Mesh(new THREE.PlaneGeometry(.8, rand(.6, 1)), new THREE.MeshStandardMaterial({ color: pick([0xf4f1ea, 0xe8433b, 0x3a8fc4, 0xf6d24a]), side: THREE.DoubleSide })); c.position.set(-2.4 + i * 1.6 + rand(-.3, .3), 4.2, -s); seg.group.add(c); }
+  const rope = new THREE.Mesh(G.cyl, M.rope); rope.scale.set(.015, ROAD_W + 3, .015); rope.rotation.z = Math.PI / 2; put(seg, rope, s, 0, 4.6); rope.userData.overhead = s;
+  for (let i = 0; i < 4; i++) { const c = new THREE.Mesh(new THREE.PlaneGeometry(.8, rand(.6, 1)), new THREE.MeshStandardMaterial({ color: pick([0xf4f1ea, 0xe8433b, 0x3a8fc4, 0xf6d24a]), side: THREE.DoubleSide })); c.position.set(-2.4 + i * 1.6 + rand(-.3, .3), 4.2, -s); c.userData.overhead = s; seg.group.add(c); }
 }
 // ---------------- beach
 function palm(seg, s, lat) {
@@ -1380,18 +1384,18 @@ function gigStage() {
 }
 function gigAudience(s0) {
   const g = new THREE.Group(); const rows = MOBILE ? 5 : 8, spots = [];
-  for (let r = 0; r < rows; r++) for (let x = -7.6 + (r % 2) * .45; x <= 7.6; x += rand(.85, 1.1))
+  for (let r = 0; r < rows; r++) for (let x = -7.6 + (r % 2) * .45; x <= 7.6; x += rand(.85, 1.1)) if (Math.abs(x) > 1.5) // keep a camera aisle down the middle
     spots.push({ x: x + rand(-.15, .15), z: -(s0 - 1.7 - r * 1.15 + rand(-.2, .2)), yaw: Math.PI }); // facing the stage
-  g.add(buildCrowd(spots, .2));
+  g.add(buildCrowd(spots, .14));
   const pts = []; for (let k = 0; k < spots.length / 9; k++) pts.push(rand(-7.5, 7.5), rand(1.9, 2.2), -(s0 - 3.5 - rand(0, rows * 1.15)));
   const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3)); g.add(new THREE.Points(pg, M2.phones));
   seg.group.add(g); return g;
 }
 // cinematic camera: shots relative to the stage front (s offset, lat, height) → look target
 const GIG_SHOTS = [
-  { t: 0, from: [-16, 0, 3.4], to: [-10, 0, 2.6], look: [1.5, 0, 2.2] },      // wide, dolly in over the crowd
-  { t: 3, from: [-7, -1.6, 2.2], to: [-4.6, -.6, 2.0], look: [1, 0, 2.1] },   // push in toward the stage
-  { t: 5.2, from: [-2.7, -1, 2.2], to: [-2.1, -.4, 2.1], look: [.9, -.3, 2.4] }, // Güneş close-up
+  { t: 0, from: [-16, 0, 4.4], to: [-10, 0, 3.4], look: [1.5, 0, 2.2] },      // wide, dolly in over the crowd
+  { t: 3, from: [-7, -.4, 2.6], to: [-4.6, -.2, 2.3], look: [1, 0, 2.1] },   // push in toward the stage
+  { t: 5.2, from: [-2.4, -.6, 2.2], to: [-1.9, -.3, 2.1], look: [.9, -.3, 2.4] }, // Güneş close-up
   { t: 6.8, from: [.1, -.2, 3.1], to: [.6, .7, 2.9], look: [3.2, 1.9, 2.3] },  // drums
   { t: 8.3, from: [-1.8, -6.8, 1.8], to: [-1.8, -3.2, 1.9], look: [1.3, -3.4, 2.1] }, // guitar side track
   { t: 9.8, from: [-5, 0, 2.3], to: [-13, 0, 5.8], look: [1.5, 0, 2.6] },     // crane out
@@ -1414,6 +1418,7 @@ function startGig() {
   state = 'gig'; gigPending = false;
   const s0 = s + 9; // stage front
   for (const o of seg.objs) if (o.mesh && o.s > s - 2 && o.s < s0 + 30) { o.mesh.visible = false; o.done = true; }
+  for (const ch of seg.group.children) if (ch.userData.overhead !== undefined && ch.userData.overhead > s0 - 22 && ch.userData.overhead < s0 + 8) ch.visible = false; // laundry lines would hang in front of the stage
   const stage = gigStage(); put(seg, stage, s0, 0, 0);
   gig = { t: 0, s0, stage, band: [], props: [], savedSpeed: speed, startS: s, startLat: lat };
   gigVideo.play().then(() => { stage.userData.screen.material.map = gigVideoTex; stage.userData.screen.material.needsUpdate = true; }).catch(() => { });
