@@ -887,6 +887,7 @@ addEventListener('keydown', e => {
   else if (k === 'ArrowDown' || k === 's' || k === 'S') act('down');
   else if (k === 'Enter') { if (state === 'menu') act('go'); else if (state === 'over' && downT > 7.6) startRun(); }
   else if (k === 'm' || k === 'M') setMuted(!muted);
+  else if ((k === 'k' || k === 'K') && state === 'run') gigShortcut();
   else if (k === 'p' || k === 'P' || k === 'Escape') togglePause();
   if (k.startsWith('Arrow') || k === ' ') e.preventDefault();
 });
@@ -902,6 +903,11 @@ function togglePause() {
 }
 $('pauseBtn').onclick = e => { e.stopPropagation(); togglePause(); };
 $('resumeBtn').onclick = togglePause;
+$('gigBtn').onclick = () => { togglePause(); gigShortcut(); };
+function gigShortcut() { // jump straight to the OD Band concert (no letters needed)
+  if (state !== 'run') return; letterGot.clear(); buildLetters();
+  if (canStartGig()) startGig(); else { gigPending = true; showMsg('KONSER GELİYOR…', 1.4); }
+}
 $('quitBtn').onclick = () => { songs.forEach(a => a.pause()); toMenu(); };
 $('goBtn').onclick = () => startRun();
 $('againBtn').onclick = () => startRun();
