@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>OD Band — Burdayım</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#140a16">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="OD Burdayım">
+<link rel="icon" href="assets/icon.png">
+<link rel="apple-touch-icon" href="assets/icon.png">
+<style>
+  @font-face{font-family:Anton;src:url(assets/Anton-Regular.ttf)}
+  @font-face{font-family:Manrope;src:url(assets/Manrope.ttf)}
+  :root{--red:#e8433b;--gold:#ffcf4a;--ink:#140a16}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:#000;overflow:hidden;overscroll-behavior:none;-webkit-touch-callout:none;color:#fff;font-family:Manrope,system-ui,sans-serif;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}
+  #game{position:fixed;inset:0}
+  canvas{display:block}
+  .layer{position:fixed;inset:0;pointer-events:none}
+  .hide{display:none!important}
+  .big{font-family:Anton,Impact,sans-serif;letter-spacing:.02em;text-transform:uppercase}
+  button{font-family:Anton,Impact,sans-serif;pointer-events:auto;cursor:pointer;border:0;color:#fff;text-transform:uppercase;letter-spacing:.04em}
+
+  #hud{padding:max(14px,env(safe-area-inset-top)) 16px 16px}
+  .hrow{display:flex;justify-content:space-between;align-items:flex-start}
+  .me{display:flex;gap:10px;align-items:center}
+  .me img{width:54px;height:54px;border-radius:50%;border:3px solid var(--gold);object-fit:cover;transition:border-color .2s}
+  .me img.danger{border-color:#ff3b4e;animation:pulse .4s infinite alternate}
+  @keyframes pulse{to{transform:scale(1.08)}}
+  .meter{width:min(34vw,170px)}
+  .meter small{font-size:11px;letter-spacing:.16em;color:#d8c9ff;font-weight:800}
+  .bar{height:9px;background:rgba(0,0,0,.45);border-radius:9px;overflow:hidden;margin-top:3px}
+  .bar i{display:block;height:100%;width:10%;background:linear-gradient(90deg,#7b5cff,#ff3b4e);transition:width .25s}
+  .score{text-align:right}
+  .score b{font-family:Anton,Impact,sans-serif;font-size:40px;line-height:1;text-shadow:0 3px 0 rgba(0,0,0,.4)}
+  .score div{font-weight:800;color:var(--gold);font-size:18px}
+  .mult{display:inline-block;background:var(--red);padding:1px 8px;border-radius:6px;font-size:14px;color:#fff;margin-right:6px}
+  #letters{position:absolute;top:calc(max(14px,env(safe-area-inset-top)) + 70px);left:16px;display:flex;gap:3px}
+  #letters span{font-family:Anton,Impact;font-size:17px;width:22px;height:26px;display:grid;place-items:center;border-radius:5px;background:rgba(0,0,0,.35);color:rgba(255,255,255,.3)}
+  #letters span.on{background:var(--gold);color:var(--ink)}
+  #power{position:absolute;top:calc(max(14px,env(safe-area-inset-top)) + 104px);left:16px;font-weight:800;font-size:14px;display:flex;flex-direction:column;gap:4px;align-items:flex-start}
+  #power div{background:rgba(0,0,0,.4);padding:3px 9px;border-radius:20px}
+  #msg{position:absolute;left:0;right:0;top:24%;text-align:center;font-size:clamp(30px,8vw,54px);color:#ffe3a0;text-shadow:0 4px 0 rgba(40,0,30,.6);opacity:0;transition:opacity .3s,transform .3s;transform:scale(.8)}
+  #msg.show{opacity:1;transform:scale(1)}
+  #now{position:absolute;left:16px;bottom:max(16px,env(safe-area-inset-bottom));font-size:13px;font-weight:700;background:rgba(0,0,0,.35);padding:6px 12px 6px 10px;border-radius:20px;backdrop-filter:blur(6px)}
+  #now b{color:var(--gold)}
+  #hint{position:absolute;left:0;right:0;bottom:12%;text-align:center;font-weight:800;font-size:16px;text-shadow:0 2px 6px #000;transition:opacity .6s}
+  #pauseBtn{position:absolute;right:16px;bottom:max(16px,env(safe-area-inset-bottom));width:42px;height:42px;border-radius:50%;background:rgba(0,0,0,.4);font-size:16px}
+  #vign{background:radial-gradient(ellipse at 50% 55%,transparent 45%,rgba(40,0,30,.85));opacity:0;transition:opacity .4s}
+  #flash{background:#fff;opacity:0;transition:opacity .5s}
+
+  #menu{display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:max(20px,env(safe-area-inset-top)) 16px max(22px,env(safe-area-inset-bottom))}
+  .logo{text-align:center;filter:drop-shadow(0 6px 18px rgba(0,0,0,.5))}
+  .logo .od{font-family:Anton,Impact;font-size:clamp(70px,20vw,120px);line-height:.9;color:var(--red);letter-spacing:.02em}
+  .logo .sub{font-family:Anton,Impact;font-size:clamp(20px,5.6vw,32px);color:#ffe3a0;line-height:1.05}
+  .logo .tag{font-size:13px;font-weight:700;opacity:.85;margin-top:6px}
+  .pick{width:100%;max-width:520px;display:flex;flex-direction:column;align-items:center;gap:12px}
+  .faces{display:flex;gap:10px;justify-content:center}
+  .faces button{width:58px;height:58px;padding:0;border-radius:50%;overflow:hidden;border:3px solid rgba(255,255,255,.35);background:#222;transition:transform .15s,border-color .15s}
+  .faces button img{width:100%;height:100%;object-fit:cover;display:block}
+  .faces button.sel{border-color:var(--gold);transform:scale(1.18)}
+  .who{font-family:Anton,Impact;font-size:26px;text-align:center;text-shadow:0 2px 10px rgba(0,0,0,.6);line-height:1.05}
+  .who small{display:block;font-family:Manrope;font-size:13px;font-weight:800;color:#ffe3a0}
+  .hname{display:block;font-family:Anton,Impact;font-size:18px;font-weight:400;line-height:1;text-shadow:0 2px 6px rgba(0,0,0,.5)}
+  .row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+  .go{background:var(--red);font-size:32px;padding:12px 46px;border-radius:40px;box-shadow:0 8px 0 #8d1e1a,0 12px 30px rgba(0,0,0,.4)}
+  .go:active{transform:translateY(4px);box-shadow:0 4px 0 #8d1e1a}
+  .ghost{background:rgba(0,0,0,.45);font-size:16px;padding:10px 18px;border-radius:30px;border:2px solid rgba(255,255,255,.3)}
+  .best{font-weight:800;color:#d8c9ff;font-size:14px;text-shadow:0 1px 4px #000}
+  @media (max-width:440px){
+    .faces{gap:6px}.faces button{width:50px;height:50px}.faces button.sel{transform:scale(1.12)}
+    .ghost{font-size:13px;padding:8px 12px}.row{gap:7px}.go{font-size:28px;padding:10px 38px}
+    .logo .tag{font-size:12px}.who{font-size:23px}
+  }
+  .arrows{position:absolute;top:46%;left:0;right:0;display:flex;justify-content:space-between;padding:0 8px}
+  .arrows button{width:48px;height:48px;border-radius:50%;background:rgba(0,0,0,.35);font-size:26px;line-height:1}
+
+  .panel{pointer-events:auto;position:fixed;inset:0;background:rgba(12,4,16,.88);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:20px}
+  .card{max-width:520px;width:100%;max-height:100%;overflow:auto;text-align:center}
+  .card h2{font-family:Anton,Impact;font-size:44px;margin:0 0 4px;color:var(--red);font-weight:400}
+  .card h3{font-family:Anton,Impact;font-weight:400;font-size:20px;margin:22px 0 8px;color:#ffe3a0;letter-spacing:.05em}
+  .card p{line-height:1.5;font-size:15px;opacity:.92;margin:6px 0}
+  .members{display:grid;grid-template-columns:1fr 1fr;gap:8px;text-align:left}
+  .members div{background:rgba(255,255,255,.07);border-radius:12px;padding:10px 12px;font-weight:800}
+  .members span{display:block;font-weight:600;font-size:12px;opacity:.7}
+  .disc{list-style:none;padding:0;margin:0;text-align:left}
+  .disc li{display:flex;justify-content:space-between;gap:10px;padding:8px 2px;border-bottom:1px solid rgba(255,255,255,.1);font-weight:700}
+  .disc li span{opacity:.6;font-weight:600;font-size:13px;text-align:right}
+  .disc li.play{color:var(--gold)}
+  .stat{font-family:Anton,Impact;font-size:72px;line-height:1}
+  .statl{font-weight:800;letter-spacing:.2em;font-size:12px;opacity:.7}
+  .over-face{width:120px;height:120px;border-radius:50%;object-fit:cover;border:4px solid #ff3b4e;margin:10px auto;display:block}
+  .newbest{color:var(--gold);font-family:Anton;font-size:22px}
+  #over{background:linear-gradient(180deg,rgba(12,4,16,0) 0%,rgba(12,4,16,.15) 40%,rgba(12,4,16,.85) 72%);backdrop-filter:none;align-items:flex-end;padding-bottom:max(20px,env(safe-area-inset-bottom))}
+  #over .card{animation:rise .5s ease-out}
+  #over .over-face{display:none}
+  #over .stat{font-size:56px}
+  .support{font-weight:700;color:#ffe3a0}
+  @keyframes rise{from{transform:translateY(40px);opacity:0}}
+  #loading{position:fixed;inset:0;background:#120814;display:grid;place-items:center;z-index:10;font-family:Anton,Impact;font-size:28px;letter-spacing:.05em;text-align:center}
+  #loading small{display:block;font-family:Manrope;font-size:13px;opacity:.7;margin-top:8px}
+  .lbar{width:220px;height:6px;background:#333;border-radius:6px;margin:14px auto 0;overflow:hidden}
+  .lbar i{display:block;height:100%;width:0;background:var(--red);transition:width .2s}
+</style>
+<script type="importmap">
+{"imports":{"three":"./lib/three.module.js","three/addons/":"./lib/addons/"}}
+</script>
+</head>
+<body>
+<div id="game"></div>
+<div id="vign" class="layer"></div>
+<div id="flash" class="layer"></div>
+
+<div id="hud" class="layer hide">
+  <div class="hrow">
+    <div class="me"><img id="hudFace" src="assets/f1.jpg" alt=""><div class="meter"><b id="hudName" class="hname"></b><small>ANKSİYETE</small><div class="bar"><i id="chaseBar"></i></div></div></div>
+    <div class="score"><b id="score">0</b><div><span id="mult" class="mult hide">NAKARAT x2</span><span id="picks">0</span> <span id="itemName">pena</span></div></div>
+  </div>
+  <div id="letters"></div>
+  <div id="power"></div>
+  <div id="msg" class="big"></div>
+  <div id="hint"></div>
+  <div id="now">♪ <b id="songArtist">OD Band</b> — <span id="songName"></span></div>
+  <button id="pauseBtn">❚❚</button>
+</div>
+
+<div id="menu" class="layer hide">
+  <div class="logo"><div class="od">OD</div><div class="sub">Burdayım</div><div class="tag">Anksiyete peşinde. Düşersen grubun burada.</div></div>
+  <div class="arrows"><button id="prevBtn">‹</button><button id="nextBtn">›</button></div>
+  <div class="pick">
+    <div class="who" id="who"></div>
+    <div class="faces" id="faces"></div>
+    <div class="row"><button class="go" id="goBtn">Koş ▶</button></div>
+    <div class="row"><button class="ghost" id="bandBtn">Grup</button><button class="ghost" id="howBtn">Nasıl oynanır</button><button class="ghost" id="muteBtn">Ses: açık</button></div>
+    <div class="best" id="bestTxt"></div>
+  </div>
+</div>
+
+<div id="band" class="panel hide"><div class="card">
+  <h2>OD BAND</h2>
+  <p>2024'te aynı okulun müzik kulübünde kurulan, beş kadından oluşan pop-punk / alternatif rock grubu. Türk rock'ın kült şarkılarını kendi enerjileriyle yorumlayarak başladılar, şimdi kendi besteleriyle yollarına devam ediyorlar.</p>
+  <h3>KADRO</h3>
+  <div class="members">
+    <div>Eylül<span>Davul · oyunda baget toplar</span></div>
+    <div>Güneş<span>Vokal · oyunda nota toplar</span></div>
+    <div>Umay<span>Bas gitar · pena toplar</span></div>
+    <div>Sude<span>Gitar · pena toplar</span></div>
+    <div>Öykü<span>Gitar · pena toplar</span></div>
+  </div>
+  <h3>ŞARKILAR</h3>
+  <ul class="disc">
+    <li>Aşk İçinden <span>ilk tekli · 2025</span></li>
+    <li>Kanada <span>tekli · 2025</span></li>
+    <li>İzlerim <span>tekli</span></li>
+    <li>Eminönü <span>tekli</span></li>
+    <li class="play">Anksiyete <span>Melis Karaduman &amp; OD Band · oyunda</span></li>
+    <li class="play">Burdayım <span>5. tekli · 4 Aralık · DART · oyunda</span></li>
+  </ul>
+  <h3>OYUNDAKİ DÜNYALAR</h3>
+  <p><b>Burdayım:</b> Şarkı boyunca yeşillik bir yoldan taş sokaklara, oradan gün batımında kumsala, en sonunda OD Band konser alanına koşuyorsun. Dünyalar koşarken birbirine bağlanıyor. İplerde beyaz çarşaflar, yolda turne kasaları. Güneşi topla: “Bir güneş doğar, ben burdayım.” Nakaratlarda puan ikiye katlanır.</p>
+  <p><b>Anksiyete — Gece:</b> Kafanda bin sekme, kalbin kaç BPM'de? Bildirimlerin, alarmların ve bitmeyen checklist'in arasından kaç.</p>
+  <p style="margin-top:22px"><button class="go" data-close>Tamam</button></p>
+</div></div>
+
+<div id="how" class="panel hide"><div class="card">
+  <h2>NASIL?</h2>
+  <p><b>← →</b> ya da sağa/sola kaydır: şerit değiştir. <b>Köşelerde</b> aynı hareketle dön; dönmezsen duvara çarparsın.</p>
+  <p><b>↑</b> ya da yukarı kaydır: zıpla (amfiler, alarmlar). <b>↓</b> ya da aşağı kaydır: kay (çarşaflı ipler, bildirim bantları).</p>
+  <p>Engele yandan sürtünürsen <b>Anksiyete</b> yaklaşır. Kısa sürede bir daha sürtünürsen ya da önden çarparsan düşersin; o zaman grup gelip seni kaldırır.</p>
+  <p>Penaları (Eylül'le bagetleri, Güneş'le notaları) topla. ☀️ <b>Güneş</b>: Anksiyete'yi geri iter, birkaç saniye korur. 🎤 <b>Mikrofon</b>: penaları kendine çeker. Harfleri sırayla topla, şarkının adını yaz: <b>+1000</b>.</p>
+  <p style="opacity:.7">Telefonda parmağını kaydırarak oyna. Bilgisayarda ok tuşları; P: duraklat · M: ses</p>
+  <p style="margin-top:22px"><button class="go" data-close>Tamam</button></p>
+</div></div>
+
+<div id="over" class="panel hide"><div class="card">
+  <h2>BURDAYIM!</h2>
+  <p id="overLine">Düştün.</p>
+  <p class="support">OD Band geldi, onu kaldırdı. Anksiyete kaçtı.</p>
+  <img class="over-face" id="overFace" src="assets/f1.jpg" alt="">
+  <div id="newBest" class="newbest hide">YENİ REKOR!</div>
+  <div class="stat" id="overScore">0</div><div class="statl">PUAN</div>
+  <p style="margin-top:12px"><b id="overPicks">0</b> <span id="overItem">pena</span> · <b id="overDist">0</b> m · rekor <b id="overBest">0</b></p>
+  <p style="margin-top:20px"><button class="go" id="againBtn">Tekrar koş ▶</button></p>
+  <p><button class="ghost" id="menuBtn">Kız değiştir</button></p>
+</div></div>
+
+<div id="pause" class="panel hide"><div class="card"><h2>MOLA</h2><p>Anksiyete de bekliyor…</p><p style="margin-top:20px"><button class="go" id="resumeBtn">Devam ▶</button></p><p><button class="ghost" id="quitBtn">Menü</button></p></div></div>
+
+<div id="loading"><div>OD BAND<div class="lbar"><i id="lbar"></i></div><small id="ltxt">yükleniyor…</small></div></div>
+
+<script type="module" src="game.js"></script>
+</body>
+</html>
