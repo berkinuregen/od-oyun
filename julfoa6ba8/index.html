@@ -56,6 +56,7 @@
   #menu{display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:max(20px,env(safe-area-inset-top)) 16px max(22px,env(safe-area-inset-bottom))}
   .logo{text-align:center;filter:drop-shadow(0 6px 18px rgba(0,0,0,.5))}
   .logo .od{font-family:Anton,Impact;font-size:clamp(70px,20vw,120px);line-height:.9;color:var(--red);letter-spacing:.02em}
+  .odlogo{width:min(52vw,250px);display:block;margin:0 auto -4px;filter:drop-shadow(0 6px 14px rgba(0,0,0,.45))}
   .logo .sub{font-family:Anton,Impact;font-size:clamp(20px,5.6vw,32px);color:#ffe3a0;line-height:1.05}
   .logo .tag{font-size:13px;font-weight:700;opacity:.85;margin-top:6px}
   .pick{width:100%;max-width:520px;display:flex;flex-direction:column;align-items:center;gap:12px}
@@ -129,7 +130,7 @@
 </div>
 
 <div id="menu" class="layer hide">
-  <div class="logo"><div class="od">OD</div><div class="sub">Burdayım</div><div class="tag">Gölge peşinde. Düşersen grubun burada.</div></div>
+  <div class="logo"><img class="odlogo" src="assets/logo_red.png" alt="OD Band"><div class="sub">Burdayım</div><div class="tag">Gölge peşinde. Düşersen grubun burada.</div></div>
   <div class="arrows"><button id="prevBtn">‹</button><button id="nextBtn">›</button></div>
   <div class="pick">
     <div class="who" id="who"></div>
@@ -141,7 +142,7 @@
 </div>
 
 <div id="band" class="panel hide"><div class="card">
-  <h2>OD BAND</h2>
+  <img src="assets/logo_red.png" alt="OD Band" style="width:200px;display:block;margin:0 auto 6px">
   <p>2024'te aynı okulun müzik kulübünde kurulan, beş kadından oluşan pop-punk / alternatif rock grubu. Türk rock'ın kült şarkılarını kendi enerjileriyle yorumlayarak başladılar, şimdi kendi besteleriyle yollarına devam ediyorlar.</p>
   <h3>KADRO</h3>
   <div class="members">
@@ -190,7 +191,7 @@
 
 <div id="pause" class="panel hide"><div class="card"><h2>MOLA</h2><p>Gölge de bekliyor…</p><p style="margin-top:20px"><button class="go" id="resumeBtn">Devam ▶</button></p><p><button class="ghost" id="gigBtn">🎸 Konseri başlat</button></p><p><button class="ghost" id="quitBtn">Menü</button></p></div></div>
 
-<div id="loading"><div>OD BAND<div class="lbar"><i id="lbar"></i></div><small id="ltxt">yükleniyor…</small></div></div>
+<div id="loading"><div><img src="assets/logo_red.png" alt="OD Band" style="width:min(56vw,260px);display:block;margin:0 auto 6px"><div class="lbar"><i id="lbar"></i></div><small id="ltxt">yükleniyor…</small></div></div>
 
 <script type="module" src="game.js"></script>
 </body>
