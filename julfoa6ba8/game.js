@@ -1099,6 +1099,7 @@ function update(dt, t) {
   if (msgTimer > 0 && (msgTimer -= dt) <= 0) $('msg').classList.remove('show');
   if (hintTimer > 0 && (hintTimer -= dt) <= 0) $('hint').style.opacity = 0;
   clouds.position.copy(camera.position); clouds.rotation.y = t * .004;
+  farGroup.position.set(camera.position.x, 0, camera.position.z); // horizon silhouettes ride with the camera — they used to sit at the world origin and the road ran straight into them after ~600 m
   skyU.time.value = t; crowdTime.value = t; crowdTick(t); seaTex.offset.x = t * .01; seaTex.offset.y = t * .006; M2.water.normalMap.offset.set(t * .02, t * .012); M2.foam.opacity = .4 + Math.sin(t * 1.3) * .2;
   if (worldFade) { worldFade.t += dt / 2.5; look.cur = worldFade.from; applyWorld(worldFade.to, Math.min(1, worldFade.t)); if (worldFade.t >= 1) { look.cur = WORLDS[worldFade.to]; worldFade = null; } }
 
