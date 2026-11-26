@@ -331,17 +331,29 @@ function worldForNextSeg() {
   const eta = songTime() + Math.max(0, ahead) / Math.max(10, speed || 13);
   return params.get('biome2') || params.get('biome') || biomeAt(eta);
 }
+const segHist = [];
+function segRect(sx, sz, dir, len, m) { const d = DIRS[dir], r = DIRS[(dir + 1) % 4]; const xs = [], zs = []; for (const [l, q] of [[-m, -12], [m, -12], [-m, len + 12], [m, len + 12]]) { xs.push(sx + d[0] * q + r[0] * l); zs.push(sz + d[1] * q + r[1] * l); } return [Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs)]; }
+const rectHit = (A, B) => A[0] < B[1] && B[0] < A[1] && A[2] < B[3] && B[2] < A[3];
+function turnClashes(sx, sz, dir, len, turn) { // would the NEXT segment (after this one turns) run into older track or its scenery?
+  const d = DIRS[dir], ex = sx + d[0] * len, ez = sz + d[1] * len, nd = (dir + (turn === 'R' ? 1 : 3)) % 4;
+  const wide = segRect(ex, ez, nd, 150, ROAD_W / 2 + 74), road = segRect(ex, ez, nd, 150, ROAD_W / 2 + 1);
+  return segHist.slice(0, -1).some(h => rectHit(wide, h.road) || rectHit(road, h.wide));
+}
 function addSeg(first) {
   const prev = segs[segs.length - 1];
   let sx = 0, sz = 0, dir = 0;
   if (prev) { const d = DIRS[prev.dir]; sx = prev.sx + d[0] * prev.len; sz = prev.sz + d[1] * prev.len; dir = (prev.dir + (prev.turn === 'R' ? 1 : 3)) % 4; }
-  const len = first ? 150 : Math.round(rand(85, 150));
+  let len = first ? 150 : Math.round(rand(85, 150));
   let turn = Math.random() < .5 ? 'L' : 'R';
   if (prev && prev.turn === turn && Math.random() < .7) turn = turn === 'L' ? 'R' : 'L';
   const world = first ? genWorld : worldForNextSeg();
   const from = prev && prev.world !== world ? prev.world : null; // worlds blend into each other inside one segment
+  if (from) len = Math.max(len, 130);
   if (world === 'beach' || from === 'beach') turn = 'R'; // keep the sea on the left
-  const seg = { sx, sz, dir, len: from ? Math.max(len, 130) : len, turn, objs: [], world, from, group: new THREE.Group(), n: segCount++ };
+  if (first) segHist.length = 0;
+  segHist.push({ road: segRect(sx, sz, dir, len, ROAD_W / 2 + 1), wide: segRect(sx, sz, dir, len, ROAD_W / 2 + 74) }); if (segHist.length > 12) segHist.shift();
+  if (turnClashes(sx, sz, dir, len, turn)) { const o = turn === 'L' ? 'R' : 'L'; if (!turnClashes(sx, sz, dir, len, o)) turn = o; }
+  const seg = { sx, sz, dir, len, turn, objs: [], world, from, group: new THREE.Group(), n: segCount++ };
   seg.group.position.set(sx, 0, sz); seg.group.rotation.y = yawOf(dir);
   root.add(seg.group);
   buildSegment(seg, first);
@@ -374,7 +386,7 @@ function worldAt(seg, s) { return seg.from && s < seg.mid ? seg.from : seg.world
 
 // builds road, ground and scenery of world `w` for the stretch a..b of a segment
 function buildPart(seg, w, a, b, isStart, isEnd) {
-  const H = ROAD_W / 2, gy = seg.gy;
+  const H = ROAD_W / 2, gy = seg.gy; fillLand(seg, w, a, b);
   const ga = isStart ? a - 4 : a, gb = isEnd ? b + 30 : b; // ground extends past the ends
   const inPart = s => s >= a + 1 && s <= b - 1 && s > 9 && s < seg.len - 9; // also keep corners clear
   const range = (start, step, fn) => { for (let s = a + start; s < b; s += step()) if (inPart(s)) fn(s); };
@@ -386,7 +398,7 @@ function buildPart(seg, w, a, b, isStart, isEnd) {
         tree(seg, s, side * rand(H + 3, H + 9));
         if (Math.random() < (MOBILE ? .3 : .55)) tree(seg, s + rand(-2, 2), side * rand(H + 10, H + 35));
         if (Math.random() < .5) bush(seg, s + rand(0, 3), side * rand(H + .9, H + 2.2));
-        if (Math.random() < .35) flowers(seg, s + rand(0, 3), side * rand(H + .6, H + 3));
+        if (Math.random() < .35) flowers(seg, s + rand(0, 3), side * rand(H + 1.3, H + 3.5));
         if (ENV.bench && Math.random() < .12) { const m = envClone('bench', 1.9, 'x'); m.rotation.y = -side * Math.PI / 2; put(seg, m, s + rand(0, 2), side * (H + 1.6), 0); }
       });
       const fa = Math.max(a + 4, 10), fb = Math.min(b - 4, seg.len - 10); if (fb - fa > 12 && Math.random() < .5) fence(seg, side, fa, fb);
@@ -408,7 +420,7 @@ function buildPart(seg, w, a, b, isStart, isEnd) {
     strip(seg, M2.foam, ga, gb, -16.6, -14.6, -.008, 2, 4);
     range(rand(2, 8), () => rand(7, 13), s => {
       const r = Math.random();
-      if (r < .35) palm(seg, s, rand(H + 2.5, H + 6) * (Math.random() < .5 ? -1 : 1));
+      if (r < .35) palm(seg, s, Math.random() < .5 ? rand(H + 5, H + 8) : -rand(H + 5, H + 8));
       else if (r < .6) { umbrella(seg, s, rand(H + 3, H + 9)); if (Math.random() < .7) lounger(seg, s + 1.3, rand(H + 3, H + 9), false); }
       else if (r < .75) hut(seg, s, rand(H + 10, H + 14));
       else rocks(seg, s, -rand(14, 18));
@@ -605,6 +617,9 @@ function cornerWall(seg) {
     let m;
     if (w === 'green' && ENV.hedge) { m = new THREE.Group(); const n = Math.ceil(Math.max(sx, sz) / 1.8); for (let i = 0; i < n; i++) { const h = envClone('hedge', 1.9); const along = -Math.max(sx, sz) / 2 + .9 + i * 1.8; h.scale.x *= 1.0; if (sx > sz) h.position.set(along, 0, 0); else h.position.set(0, 0, along); m.add(h); } }
     else if (w === 'green') { m = new THREE.Mesh(G.box, M2.hedge); m.scale.set(sx, 1.9, sz); m.position.y = .95; }
+    else if (w === 'stone' && ENV.house1) { m = new THREE.Group(); const L = Math.max(sx, sz), along = sx > sz, sg = Math.sign(lat) || 1;
+      for (let q = -L / 2 - 1; q < L / 2 + 1;) { const k = pickEnv('house1', 'house2', 'house3', 'house4'), z = ENV[k].userData.size, h = rand(8.5, 11), wd = z.x * h / z.y, dp = z.z * h / z.y, o = envClone(k, h);
+        if (along) { o.position.set(q + wd / 2, 0, -dp / 2 + .7); } else { o.rotation.y = -sg * Math.PI / 2; o.position.set(sg * (dp / 2 - .7), 0, -(q + wd / 2)); } m.add(o); q += wd; } }
     else if (w === 'stone') { m = new THREE.Group(); const b = new THREE.Mesh(G.box, pick(M2.walls)); b.scale.set(sx, 5.5, sz); b.position.y = 2.75; m.add(b); const roof = new THREE.Mesh(G.box, M2.tile); roof.scale.set(sx + .4, .35, sz + .4); roof.position.y = 5.6; m.add(roof); }
     else if (w === 'beach' && ENV.rock2) { m = new THREE.Group(); for (let i = 0; i < Math.max(sx, sz) / 1.6; i++) { const r = envClone(pick(['rock1', 'rock2']), rand(1.3, 1.7), 'x'); r.rotation.y = rand(0, 6); const along = -Math.max(sx, sz) / 2 + .8 + i * 1.6; r.position.y = 0; if (sx > sz) r.position.set(along, 0, 0); else r.position.set(0, 0, along); m.add(r); } }
     else if (w === 'beach') { m = new THREE.Group(); for (let i = 0; i < Math.max(sx, sz) / 1.3; i++) { const r = new THREE.Mesh(G2.dodec, M2.rock); r.scale.set(rand(.7, 1.2), rand(.6, 1.1), rand(.7, 1.1)); const along = -Math.max(sx, sz) / 2 + i * 1.3; if (sx > sz) r.position.set(along, .45, 0); else r.position.set(0, .45, along); m.add(r); } }
@@ -628,7 +643,7 @@ function loadEnv() {
     const w = new THREE.Group(); sc.position.set(-c.x, -b.min.y, -c.z); w.add(sc); w.userData.size = sz; sc.traverse(o => { if (o.geometry) o.geometry.userData.keep = true; }); ENV[k] = w; res();
   }, undefined, () => res()))));
 }
-const ENV_EXTRA = ['house1', 'house2', 'house3', 'house4', 'umb1', 'umb2', 'umb3', 'lounger1', 'lounger2', 'lifeguard', 'beachhut', 'beachball', 'lifebuoy', 'crate1', 'crate2', 'crate3', 'planter', 'sandcastle', 'barricade', 'sawhorse', 'crowdbar', 'jersey', 'mic', 'drumstick', 'guitarpick', 'amp', 'amp2', 'parcan', 'ledpanel', 'bench', 'volleyball'];
+const ENV_EXTRA = ['house1', 'house2', 'house3', 'house4', 'umb1', 'umb2', 'umb3', 'lounger1', 'lounger2', 'lifeguard', 'beachhut', 'beachball', 'lifebuoy', 'crate1', 'crate2', 'crate3', 'planter', 'sandcastle', 'barricade', 'sawhorse', 'crowdbar', 'jersey', 'mic', 'drumstick', 'guitarpick', 'amp', 'amp2', 'parcan', 'ledpanel', 'bench', 'volleyball', 'sail1', 'sail2', 'rowboat', 'grass', 'grass2', 'drygrass', 'drygrass2', 'bush2', 'rosebush', 'flowerbush', 'stone', 'desertrocks', 'tent', 'ferris', 'pier', 'tree6', 'foodtruck'];
 // bake all meshes of a model into one geometry (world transforms applied); with colours=true, material colours go to vertex colours
 function bakeGeo(root, colours) {
   root.updateMatrixWorld(true); const parts = [];
@@ -654,11 +669,57 @@ function loadEnvExtra() {
 }
 const pickEnv = (...ks) => { const ok = ks.filter(k => ENV[k]); return ok.length ? pick(ok) : null; };
 // clone a model scaled so its height (or width when axis='x') is `size` metres
-function envClone(k, size, axis = 'y') { const t = ENV[k]; if (!t) return null; const m = t.clone(true); m.scale.setScalar(size / t.userData.size[axis]); return m; }
+function envClone(k, size, axis = 'y') { const t = ENV[k]; if (!t) return null; const m = t.clone(true); m.userData.k = k; m.scale.setScalar(size / t.userData.size[axis]); return m; }
+const _im = new THREE.Matrix4(), _iq = new THREE.Quaternion(), _is = new THREE.Vector3(), _ip = new THREE.Vector3(), _iy = new THREE.Vector3(0, 1, 0), _iinv = new THREE.Matrix4();
+function scatter(seg, k, items, shadow = false) { // items: [s, lat, height, yaw, y]
+  const t = ENV[k]; if (!t || !items.length) return; t.updateMatrixWorld(true); _iinv.copy(t.matrixWorld).invert();
+  const meshes = []; t.traverse(o => { if (o.isMesh) meshes.push(o); });
+  for (const o of meshes) { const rel = new THREE.Matrix4().multiplyMatrices(_iinv, o.matrixWorld); const im = new THREE.InstancedMesh(o.geometry, o.material, items.length);
+    items.forEach((it, i) => { _iq.setFromAxisAngle(_iy, it[3] ?? rand(0, 6.28)); _im.compose(_ip.set(it[1], it[4] || 0, -it[0]), _iq, _is.setScalar(it[2] / t.userData.size.y)); _im.multiply(rel); im.setMatrixAt(i, _im); });
+    im.computeBoundingSphere(); im.castShadow = shadow; im.receiveShadow = true; o.geometry.userData.keep = true; seg.group.add(im); }
+}
+// scatter `n` of the given models over s∈[a,b], |lat|∈[l0,l1] on one side
+function sprinkle(seg, a, b, side, l0, l1, n, keys, h0, h1, shadow) {
+  a = Math.max(a, 11); b = Math.min(b, seg.len - 11); if (b <= a) return; n = Math.round(n * (b - a) * (MOBILE ? .55 : 1)); const by = {};
+  for (let i = 0; i < n; i++) { const k = pick(keys.filter(x => ENV[x])); if (!k) return; (by[k] ||= []).push([rand(a, b), side * rand(l0, l1), rand(h0, h1)]); }
+  for (const k in by) scatter(seg, k, by[k], shadow);
+}
+function fillLand(seg, w, a, b) {
+  const H = ROAD_W / 2;
+  if (w === 'green') for (const side of [-1, 1]) {
+    sprinkle(seg, a, b, side, H + 1.2, H + 30, 1.1, ['grass', 'grass2'], .45, .85);
+    sprinkle(seg, a, b, side, H + 2.5, H + 26, .22, ['bush2', 'rosebush', 'flowerbush'], .7, 1.3);
+    sprinkle(seg, a, b, side, H + 3, H + 40, .08, ['stone'], .35, .9);
+    sprinkle(seg, a, b, side, H + 12, H + 55, .35, ['tree1', 'tree2', 'tree3', 'tree4', 'tree6'], 4, 7.5);
+    sprinkle(seg, a, b, side, H + 46, H + 72, .16, ['pines'], 4, 5.5);
+    if (Math.random() < .35) { const s0 = rand(a + 15, b - 15), l = rand(H + 16, H + 30); scatter(seg, 'tent', Array.from({ length: 3 + Math.floor(rand(0, 3)) }, () => [s0 + rand(-7, 7), side * (l + rand(-4, 4)), rand(1.2, 1.5)])); }
+  } else if (w === 'stone') for (const side of [-1, 1]) {
+    for (const [l, h0, h1] of [[H + 14, 10, 13], [H + 26, 13, 17]]) { // rooftops behind the street
+      const keys = ['house1', 'house2', 'house4'].filter(k => ENV[k]); if (!keys.length) break; const by = {};
+      for (let q = Math.max(a, 11); q < Math.min(b, seg.len - 14);) { const k = pick(keys), sz = ENV[k].userData.size, h = rand(h0, h1), wd = sz.x * h / sz.y; (by[k] ||= []).push([q + wd / 2, side * (l + sz.z * h / sz.y / 2), h, -side * Math.PI / 2]); q += wd + rand(.2, 1.2); }
+      for (const k in by) scatter(seg, k, by[k]);
+    }
+    sprinkle(seg, a, b, side, H + 48, H + 70, .12, ['tree6', 'tree3'], 6, 10);
+  } else if (w === 'beach') {
+    sprinkle(seg, a, b, 1, H + 1.5, H + 40, .9, ['drygrass', 'drygrass2'], .5, .9);
+    sprinkle(seg, a, b, 1, H + 7, H + 60, .36, ['palm'], 5.5, 8.5);
+    sprinkle(seg, a, b, 1, H + 6, H + 45, .05, ['desertrocks'], .8, 1.5);
+    sprinkle(seg, a, b, 1, H + 6, H + 30, .1, ['umb1', 'umb2', 'umb3'], 2.5, 2.8);
+    sprinkle(seg, a, b, 1, H + 6, H + 30, .08, ['lounger1', 'lounger2'], .5, .6);
+    sprinkle(seg, a, b, -1, H + 2, H + 11, .25, ['drygrass', 'drygrass2'], .4, .7);
+    sprinkle(seg, a, b, -1, 40, 160, .035, ['sail1', 'sail2'], 7, 12);
+    if (ENV.pier && Math.random() < .45) { const q = rand(Math.max(a, 22), Math.min(b, seg.len - 22)); if (q > a) { const sz = ENV.pier.userData.size, h = 18 / sz.z * sz.y; scatter(seg, 'pier', [[q, -25, h, Math.PI / 2, -h * .45]]); if (ENV.rowboat) scatter(seg, 'rowboat', [[q + 5, -27, .55, rand(0, 6), -.12]]); } }
+  } else if (w === 'concert') for (const side of [-1, 1]) {
+    sprinkle(seg, a, b, side, H + 19, H + 48, .3, ['tent'], 1.3, 1.7);
+    sprinkle(seg, a, b, side, H + 16, H + 60, .25, ['grass', 'grass2'], .4, .7);
+    if (ENV.foodtruck) { const items = []; for (let q = Math.max(a, 14) + rand(0, 10); q < Math.min(b, seg.len - 14); q += rand(26, 40)) items.push([q, side * (H + 16.5), 3.6, -side * Math.PI / 2 + Math.PI]); scatter(seg, 'foodtruck', items); }
+    if (ENV.ferris && Math.random() < .35) scatter(seg, 'ferris', [[rand(Math.max(a, 30), Math.max(a + 1, Math.min(b, seg.len - 30))), side * rand(55, 70), 24, side * Math.PI / 2]]);
+  }
+}
 // ---------------- green
 function tree(seg, s, lat) {
   const far = Math.abs(lat) > ROAD_W / 2 + 14;
-  const em = far && Math.random() < .5 ? envClone('pines', rand(7, 10)) : envClone(pick(['tree1', 'tree2', 'tree3', 'tree4']), rand(4.2, 6.5));
+  const em = far && Math.random() < .5 ? envClone('pines', rand(7, 10), 'x') : envClone(pick(['tree1', 'tree2', 'tree3', 'tree4']), rand(4.2, 6.5));
   if (em) { em.rotation.y = rand(0, 6); put(seg, em, s, lat, 0); return; }
   const g = new THREE.Group(); const h = rand(2.2, 3.6);
   if (Math.random() < .3) { // pine
@@ -1771,7 +1832,14 @@ function frame() {
   if (params.has('sel')) sel = +params.get('sel');
   toMenu();
   if (params.has('wait')) await new Promise(r => setTimeout(r, +params.get('wait') || 6000)); // debug: let lazy assets arrive
-  if (params.has('run')) { if (params.get('run')) sel = +params.get('run'); startRun(); if (params.has('sim')) { const n = +params.get('sim'); for (let i = 0; i < n && state === 'run'; i++) { if (params.has('auto')) autopilot(); if (i === n - 12 && params.has('jump')) act('up'); if (i === n - 20 && params.has('slide')) act('down'); update(1 / 60, i / 60); } if (params.has('gig')) { startGig(); for (let i = 0; i < +params.get('gig'); i++) update(1 / 60, i / 60); if (params.has('pshoot') && photo) { photo.needle = .5; shoot(); } } if (params.has('down')) { gameOver('Test'); for (let i = 0; i < +params.get('down'); i++) update(1 / 60, i / 60); } const d = document.createElement('div'); d.style.cssText = 'position:fixed;top:120px;left:10px;font:14px monospace;background:#000a;padding:6px;z-index:99'; d.textContent = `state=${state} segI=${segI} s=${s.toFixed(1)} len=${seg.len} turn=${seg.turn} turnQ=${turnQ} lane=${lane} lat=${lat.toFixed(2)} dist=${dist.toFixed(0)} reason=${$('overLine').textContent}`; document.body.appendChild(d); } }
+  window.chkRoad = () => { // debug: which scenery pokes into a road
+    const H = ROAD_W / 2, bad = {}; const box = new THREE.Box3(), inv = new THREE.Matrix4(), lb = new THREE.Box3();
+    for (const sg of segs) { sg.group.updateMatrixWorld(true); const keep = new Set(sg.objs.map(o => o.mesh));
+      for (const ch of sg.group.children) { if (keep.has(ch) || ch.isMesh && ch.geometry?.type === 'PlaneGeometry') continue; box.setFromObject(ch); if (box.isEmpty() || box.max.y < .05) continue;
+        for (const r of segs) { inv.copy(r.group.matrixWorld).invert(); lb.copy(box).applyMatrix4(inv); const ov = Math.min(lb.max.x, H - .2) - Math.max(lb.min.x, -H + .2), ovz = Math.min(lb.max.z, H) - Math.max(lb.min.z, -r.len - H);
+          if (ov > 0 && ovz > 0 && box.max.y > .1 && box.min.y < 3.5) { let k = ch.userData.k; ch.traverse(o => { k ||= o.userData.k; }); k ||= (ch.isMesh ? 'mesh:' + ch.geometry.type : 'group' + ch.children.length); k += ' w=' + r.world + (r === sg ? '' : ' OTHERSEG ' + sg.n + '>' + r.n + ' ' + [lb.min.x, lb.max.x, lb.min.z, lb.max.z].map(v => v.toFixed(0)).join(',') + ' len' + r.len); bad[k] = (bad[k] || 0) + 1; } } } }
+    console.log('CHK ' + JSON.stringify(bad)); };
+  if (params.has('run')) { if (params.get('run')) sel = +params.get('run'); startRun(); if (params.has('sim')) { const n = +params.get('sim'); for (let i = 0; i < n && state === 'run'; i++) { if (params.has('auto')) autopilot(); if (i === n - 12 && params.has('jump')) act('up'); if (i === n - 20 && params.has('slide')) act('down'); update(1 / 60, i / 60); } if (params.has('gig')) { startGig(); for (let i = 0; i < +params.get('gig'); i++) update(1 / 60, i / 60); if (params.has('pshoot') && photo) { photo.needle = .5; shoot(); } } if (params.has('chk')) chkRoad(); if (params.has('down')) { gameOver('Test'); for (let i = 0; i < +params.get('down'); i++) update(1 / 60, i / 60); } const d = document.createElement('div'); d.style.cssText = 'position:fixed;top:120px;left:10px;font:14px monospace;background:#000a;padding:6px;z-index:99'; d.textContent = `state=${state} segI=${segI} s=${s.toFixed(1)} len=${seg.len} turn=${seg.turn} turnQ=${turnQ} lane=${lane} lat=${lat.toFixed(2)} dist=${dist.toFixed(0)} reason=${$('overLine').textContent}`; document.body.appendChild(d); } }
 })();
 
 function autopilot() {
