@@ -114,15 +114,25 @@ const SUN_OFF = new THREE.Vector3(-12, 16, -70);
 const fill = new THREE.DirectionalLight(0xffffff, .5); scene.add(fill, fill.target);
 
 // ------------------------------------------------------------------ sky dome
-const skyU = { top: { value: new THREE.Color() }, mid: { value: new THREE.Color() }, bot: { value: new THREE.Color() }, sunDir: { value: new THREE.Vector3(.3, .05, -1).normalize() }, sunCol: { value: new THREE.Color(0xfff0c8) }, stars: { value: 0 }, time: { value: 0 } };
+const skyU = { cl1: { value: new THREE.Color(0xffffff) }, cl2: { value: new THREE.Color(0xb8c8dc) }, clA: { value: .5 }, top: { value: new THREE.Color() }, mid: { value: new THREE.Color() }, bot: { value: new THREE.Color() }, sunDir: { value: new THREE.Vector3(.3, .05, -1).normalize() }, sunCol: { value: new THREE.Color(0xfff0c8) }, stars: { value: 0 }, time: { value: 0 } };
 const sky = new THREE.Mesh(new THREE.SphereGeometry(900, 32, 16), new THREE.ShaderMaterial({
   side: THREE.BackSide, depthWrite: false, fog: false, uniforms: skyU,
   vertexShader: `varying vec3 vP; void main(){ vP=normalize(position); gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
-  fragmentShader: `uniform vec3 top,mid,bot,sunDir,sunCol; uniform float stars,time; varying vec3 vP;
+  fragmentShader: `uniform vec3 top,mid,bot,sunDir,sunCol,cl1,cl2; uniform float stars,time,clA; varying vec3 vP;
     float h(vec3 p){return fract(sin(dot(p,vec3(12.9898,78.233,45.164)))*43758.5453);}
+    float h2(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+    float n2(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h2(i),h2(i+vec2(1,0)),f.x),mix(h2(i+vec2(0,1)),h2(i+vec2(1,1)),f.x),f.y);}
+    float fbm(vec2 p){float v=0.,a=.5;for(int i=0;i<5;i++){v+=a*n2(p);p=p*2.03+vec2(17.1,9.2);a*=.5;}return v;}
     void main(){ float y=vP.y; vec3 c = y>0.18 ? mix(mid,top,smoothstep(.18,.75,y)) : mix(bot,mid,smoothstep(-.02,.18,y));
       float d=max(dot(vP,sunDir),0.); c += sunCol*(pow(d,900.)*3.0 + pow(d,24.)*.35 + pow(d,4.)*.12)*(1.-stars*.7);
       if(stars>0.){ vec3 q=floor(vP*260.); float s=step(.9975,h(q)); c+=vec3(s)*stars*smoothstep(0.05,.3,y)*(.6+.4*sin(time*3.+h(q)*40.)); }
+      if(clA>0.01 && y>0.015){ vec2 uv=vP.xz/(y+.09)*.9 + vec2(time*.006,time*.002);
+        float d=fbm(uv*1.3); d=smoothstep(1.-clA, 1.-clA+.28, d);
+        float edge=fbm(uv*1.3+vec2(.06,.04)); float lit=clamp((d-smoothstep(1.-clA,1.-clA+.28,edge))*3.+.5,0.,1.);
+        float sunGlow=pow(max(dot(vP,sunDir),0.),6.);
+        vec3 cc=mix(cl2,cl1,lit)+sunCol*sunGlow*.35;
+        float fade=smoothstep(.015,.14,y)*(1.-smoothstep(.7,.98,y)*.6);
+        c=mix(c,cc,d*fade*.92); }
       gl_FragColor=vec4(c,1.); }`
 }));
 sky.renderOrder = -1; scene.add(sky);
@@ -1140,6 +1150,8 @@ function nextSong() {
 
 // ------------------------------------------------------------------ world look
 const look = { cur: null };
+const CLOUDS = { // lit colour, shade colour, coverage
+  green: [0xffffff, 0xaebfd6, .58], stone: [0xfff3e2, 0xc89a80, .6], beach: [0xffd9b8, 0x9a5a86, .62], concert: [0x6c4f9e, 0x1c1234, .45], night: [0x3a2c60, 0x0c0818, .4] };
 function applyWorld(name, k = 1) {
   const W = WORLDS[name];
   const c = (a, b) => new THREE.Color(a).lerp(new THREE.Color(b), k);
@@ -1151,7 +1163,9 @@ function applyWorld(name, k = 1) {
   seaMat.color.copy(c(from.sea, W.sea)); bloom.strength = lerp(from.bloom, W.bloom, k);
   const cl = { green: 1, stone: .9, beach: .75, concert: .25, night: 0 }; const ca = lerp(cl[look.cur === WORLDS.green ? 'green' : Object.keys(WORLDS).find(n => WORLDS[n] === from) || name] ?? 1, cl[name] ?? 1, k);
   const tint = c(name === 'beach' ? 0xffd2c0 : 0xffffff, name === 'concert' ? 0x8a6ab8 : name === 'beach' ? 0xffc2b0 : 0xffffff);
-  clouds.children.forEach(sp => { sp.material.opacity = ca * .85; sp.material.color.copy(tint); }); clouds.visible = ca > .02;
+  clouds.visible = false; // replaced by shader clouds in the dome
+  const CL = n => CLOUDS[n] || CLOUDS.green, fn = Object.keys(WORLDS).find(n => WORLDS[n] === from), a0 = from.cl ? from.cl : CL(fn || name), a1 = CL(name);
+  skyU.cl1.value.copy(c(a0[0], a1[0])); skyU.cl2.value.copy(c(a0[1], a1[1])); skyU.clA.value = lerp(a0[2], a1[2], k);
   fill.intensity = lerp(from.fill ?? .5, W.fill, k); seaMat.specular.copy(c(from.spec ?? 0xffd0a0, W.spec));
   for (const m of seaClones) { m.color.copy(M2.water.color); m.specular.copy(M2.water.specular); }
 }
@@ -1160,7 +1174,7 @@ function setWorld(name, instant) {
   if (instant) { look.cur = null; applyWorld(name, 1); look.cur = WORLDS[name]; curWorld = name; buildFar(name); return; }
   worldFade = { from: snapshotLook(), to: name, t: 0 }; curWorld = name; buildFar(name);
 }
-function snapshotLook() { const W = { ...WORLDS[curWorld] }; W.fog = scene.fog.color.getHex(); W.fogNear = scene.fog.near; W.fogFar = scene.fog.far; W.skyTop = skyU.top.value.getHex(); W.skyMid = skyU.mid.value.getHex(); W.skyBot = skyU.bot.value.getHex(); W.stars = skyU.stars.value; W.sun = sun.color.getHex(); W.sunI = sun.intensity; W.hemiSky = hemi.color.getHex(); W.hemiGround = hemi.groundColor.getHex(); W.hemiI = hemi.intensity; W.sea = seaMat.color.getHex(); W.bloom = bloom.strength; W.fill = fill.intensity; W.spec = seaMat.specular.getHex(); return W; }
+function snapshotLook() { const W = { ...WORLDS[curWorld] }; W.cl = [skyU.cl1.value.getHex(), skyU.cl2.value.getHex(), skyU.clA.value]; W.fog = scene.fog.color.getHex(); W.fogNear = scene.fog.near; W.fogFar = scene.fog.far; W.skyTop = skyU.top.value.getHex(); W.skyMid = skyU.mid.value.getHex(); W.skyBot = skyU.bot.value.getHex(); W.stars = skyU.stars.value; W.sun = sun.color.getHex(); W.sunI = sun.intensity; W.hemiSky = hemi.color.getHex(); W.hemiGround = hemi.groundColor.getHex(); W.hemiI = hemi.intensity; W.sea = seaMat.color.getHex(); W.bloom = bloom.strength; W.fill = fill.intensity; W.spec = seaMat.specular.getHex(); return W; }
 
 // ------------------------------------------------------------------ game flow
 function clearTrack() { for (const sg of segs) { root.remove(sg.group); disposeGroup(sg.group); } segs = []; }
@@ -1411,7 +1425,7 @@ function update(dt, t) {
       if (turnQ) {
         const old = seg, oldLat = lat, over = s - old.len;
         segI++; seg = segs[segI];
-        s = turnQ === 'R' ? oldLat : -oldLat; lat = 0; lane = 0; turnQ = null;
+        s = over; lat = 0; lane = 0; turnQ = null; // the bend already brought her to the middle (runnerPose)
         while (segs.length - segI < 4) addSeg();
         if (segI > 1) { const dead = segs.shift(); root.remove(dead.group); disposeGroup(dead.group); segI--; }
         if (!seg.from && seg.world !== curWorld) setWorld(seg.world);
@@ -1484,7 +1498,7 @@ function update(dt, t) {
   player.holder.visible = !(state === 'run' && stumbleT > 2.6 && Math.floor(t * 14) % 2 === 0);
 
   // camera follow
-  camYaw = angLerp(camYaw, targetYaw, Math.min(1, dt * 5));
+  camYaw = angLerp(camYaw, targetYaw, Math.min(1, dt * 6.5));
   const fx = -Math.sin(camYaw), fz = -Math.cos(camYaw);
   const portrait = camera.aspect < .8, camBack = portrait ? 5.6 : 6.4, camUp = portrait ? 3.3 : 3.4;
   if (state === 'run' || state === 'pause') {
