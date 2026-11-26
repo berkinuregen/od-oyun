@@ -196,6 +196,85 @@
   #loading small{display:block;font-family:Manrope;font-size:13px;opacity:.7;margin-top:8px}
   .lbar{width:220px;height:6px;background:#333;border-radius:6px;margin:14px auto 0;overflow:hidden}
   .lbar i{display:block;height:100%;width:0;background:var(--red);transition:width .2s}
+
+  /* ================= UI 2.0 — "punk sticker / glass stage" ================= */
+  :root{--glass:rgba(20,10,26,.62);--glass2:rgba(255,255,255,.08);--line:rgba(255,255,255,.14);--pink:#ff4fa3;--cyan:#4de1ff;--r:22px}
+  .panel{background:radial-gradient(ellipse at 50% 0%,rgba(232,67,59,.22),transparent 60%),rgba(10,4,14,.82);backdrop-filter:blur(14px)}
+  .panel .card{background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.02));border:1px solid var(--line);border-radius:28px;padding:26px 22px 22px;box-shadow:0 30px 80px rgba(0,0,0,.5);max-width:480px}
+  .panel h2{font-family:Anton,Impact;font-size:clamp(30px,8vw,42px);letter-spacing:.04em;margin:0 0 6px;color:#fff;display:inline-block;background:var(--red);padding:2px 16px 4px;transform:rotate(-2deg);box-shadow:4px 4px 0 #8d1e1a}
+  .panel h3{font-family:Anton,Impact;letter-spacing:.08em;color:var(--gold);margin:20px 0 8px}
+  .sub2{opacity:.8;font-size:14px;margin:10px 0 14px}
+  .go{background:linear-gradient(180deg,#ff5a4e,#d8302a);border-radius:999px;letter-spacing:.06em}
+  .ghost{background:var(--glass2);border:1px solid var(--line);backdrop-filter:blur(8px);border-radius:999px;font-size:14px;padding:10px 16px}
+  .ghost.hot{background:linear-gradient(135deg,#ff4fa3,#a66bff);border:0}
+  /* menu */
+  #menu{justify-content:space-between}
+  .sheet{background:linear-gradient(180deg,rgba(20,8,24,.0),rgba(20,8,24,.72) 22%,rgba(20,8,24,.86));border-radius:30px 30px 0 0;padding:16px 14px 6px;margin:0 -16px;width:calc(100% + 32px);max-width:560px;gap:12px}
+  .who{font-size:30px;letter-spacing:.03em}
+  .faces button{width:56px;height:56px;box-shadow:0 6px 16px rgba(0,0,0,.45)}
+  .faces button.sel{border-color:var(--gold);transform:scale(1.2);box-shadow:0 0 0 4px rgba(255,207,74,.25),0 8px 22px rgba(0,0,0,.5)}
+  #goBtn{font-size:34px;padding:12px 64px}
+  .chips{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+  .chip{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 14px;border-radius:999px;background:var(--glass2);border:1px solid var(--line);font:800 12px Manrope,sans-serif;letter-spacing:.12em;color:#fff}
+  .chip.gold{color:var(--gold)}
+  .chip.agite{height:40px;min-width:72px;justify-content:center;background:#0c0c0c;border-color:rgba(255,255,255,.4)}.chip.agite img{height:15px}.chip.agite.on{background:#f4efe8}.chip.agite.on img{filter:invert(1)}
+  .dock{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;width:100%;max-width:440px}
+  .tile{display:flex;flex-direction:column;align-items:center;gap:3px;padding:9px 0 7px;border-radius:18px;background:var(--glass2);border:1px solid var(--line);font:800 11px Manrope,sans-serif;letter-spacing:.06em;text-transform:none}
+  .tile i{font-style:normal;font-size:22px;line-height:1}
+  .tile.hide{display:flex!important;opacity:.35;pointer-events:none}
+  .arrows button{background:var(--glass2);border:1px solid var(--line);backdrop-filter:blur(8px)}
+  /* HUD */
+  .me{background:var(--glass);border:1px solid var(--line);border-radius:999px;padding:4px 14px 4px 4px;backdrop-filter:blur(8px)}
+  .me img{width:46px;height:46px}
+  .score{background:var(--glass);border:1px solid var(--line);border-radius:18px;padding:6px 14px 6px;backdrop-filter:blur(8px)}
+  .score b{font-size:34px}
+  .score div{font-size:15px}
+  #letters{top:calc(max(14px,env(safe-area-inset-top)) + 64px);gap:4px}
+  #letters span{width:24px;height:28px;border-radius:7px;background:var(--glass);border:1px solid var(--line);transform:rotate(-3deg)}
+  #letters span:nth-child(even){transform:rotate(3deg)}
+  #letters span.on{background:var(--gold);border-color:#fff3c0;box-shadow:0 0 12px rgba(255,207,74,.6)}
+  #power{top:calc(max(14px,env(safe-area-inset-top)) + 102px)}
+  #power .pw{background:var(--glass);border:1px solid var(--line);border-radius:999px;padding:3px 12px 3px 3px;font-size:13px;backdrop-filter:blur(6px)}
+  #combo{position:absolute;right:16px;top:calc(max(14px,env(safe-area-inset-top)) + 70px);display:flex;flex-direction:column;align-items:flex-end;opacity:0;transform:translateX(20px) scale(.9);transition:opacity .2s,transform .2s;pointer-events:none}
+  #combo.on{opacity:1;transform:none}
+  #combo b{font-family:Anton,Impact;font-size:38px;line-height:1;color:var(--gold);text-shadow:0 0 18px rgba(255,180,0,.6),0 3px 0 #8d1e1a}
+  #combo span{font:800 11px Manrope,sans-serif;letter-spacing:.18em}
+  #combo em{display:block;width:84px;height:5px;border-radius:5px;background:rgba(255,255,255,.18);overflow:hidden;margin-top:4px}
+  #combo em i{display:block;height:100%;background:linear-gradient(90deg,#ff4fa3,#ffd23a);transform-origin:left}
+  #pauseBtn{background:var(--glass);border:1px solid var(--line);backdrop-filter:blur(8px)}
+  #now{background:var(--glass);border:1px solid var(--line)}
+  /* game over */
+  #itemName{margin-left:4px}
+  .bankline{font:800 13px Manrope,sans-serif;color:var(--gold);letter-spacing:.06em;margin:8px 0 0}
+  /* wardrobe */
+  .tabs{display:flex;gap:6px;justify-content:center;margin-bottom:12px}
+  .tabs button{padding:8px 14px;border-radius:999px;background:var(--glass2);border:1px solid var(--line);font:800 13px Manrope,sans-serif;text-transform:none}
+  .tabs button.on{background:var(--gold);color:var(--ink)}
+  .wgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .witem{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 8px;border-radius:18px;background:var(--glass2);border:2px solid var(--line);font:800 13px Manrope,sans-serif;text-transform:none;color:#fff}
+  .witem i{width:54px;height:54px;border-radius:50%;box-shadow:inset 0 0 0 3px rgba(255,255,255,.25),0 6px 16px rgba(0,0,0,.4)}
+  .witem span{font-size:11px;letter-spacing:.12em;color:var(--gold)}
+  .witem.on{border-color:var(--gold);background:rgba(255,207,74,.12)}
+  .witem.locked{opacity:.55}.witem.nope{animation:nope .35s}
+  @keyframes nope{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+  /* story */
+  #story,#wardrobe,#lb{z-index:40}
+  .storyimg{width:min(62vw,260px);aspect-ratio:9/16;border-radius:18px;box-shadow:0 20px 50px rgba(0,0,0,.6);margin-top:10px;background:#222}
+  /* rhythm finale */
+  #rhythm{pointer-events:none;z-index:8}
+  #rhythm .lane{position:absolute;top:0;bottom:0;width:33.33%;background:linear-gradient(180deg,transparent,rgba(255,255,255,.05) 60%,rgba(255,255,255,.1));border-left:1px solid rgba(255,255,255,.08)}
+  #rhythm .lane.l0{left:0}#rhythm .lane.l1{left:33.33%}#rhythm .lane.l2{left:66.66%}
+  #rhythm .lane.hit{animation:lanehit .25s}
+  @keyframes lanehit{0%{background:linear-gradient(180deg,transparent,rgba(255,207,74,.35))}}
+  #rhythm .hitline{position:absolute;left:0;right:0;top:82%;height:0;border-top:3px solid rgba(255,255,255,.7);box-shadow:0 0 18px rgba(255,255,255,.6);display:flex}
+  #rhythm .hitline i{flex:1;text-align:center;font-style:normal;font:800 18px Manrope;opacity:.7;margin-top:10px}
+  #rhythm .note{position:absolute;top:0;width:64px;height:22px;border-radius:12px;box-shadow:0 0 16px currentColor;will-change:transform}
+  #rhythm .note.l0{left:16.66%;background:#ff4fa3;color:#ff4fa3}#rhythm .note.l1{left:50%;background:#ffd23a;color:#ffd23a}#rhythm .note.l2{left:83.33%;background:#4de1ff;color:#4de1ff}
+  #rhythm .note.miss{opacity:.25;transition:opacity .3s}
+  #rhythm .rj{position:absolute;top:74%;transform:translateX(-50%);font-family:Anton,Impact;font-size:22px;color:#fff;text-shadow:0 2px 8px #000;animation:pop .6s ease-out forwards}
+  #rhythm .rj.l0{left:16.66%}#rhythm .rj.l1{left:50%}#rhythm .rj.l2{left:83.33%}
+  #rhythm .rhead{position:absolute;left:0;right:0;top:calc(max(14px,env(safe-area-inset-top)) + 120px);text-align:center;font-family:Anton,Impact;letter-spacing:.1em}
+  #rhythm .rhead span{display:block;font-size:16px;color:var(--gold)}#rhythm .rhead b{font-size:44px;display:block;line-height:1}#rhythm .rhead em{font-style:normal;font-size:16px;color:var(--pink)}
 </style>
 <script type="importmap">
 {"imports":{"three":"./lib/three.module.js","three/addons/":"./lib/addons/"}}
@@ -215,6 +294,7 @@
     <div class="me"><img id="hudFace" src="assets/f1.jpg" alt=""><div class="meter"><b id="hudName" class="hname"></b></div></div>
     <div class="score"><b id="score">0</b><div><span id="mult" class="mult hide">NAKARAT x2</span><span id="picks">0</span> <span id="itemName">pena</span></div></div>
   </div>
+  <div id="combo"><b>x1</b><span>0 KOMBO</span><em><i></i></em></div>
   <div id="letters"></div>
   <div id="power"></div>
   <div id="msg" class="big"></div>
@@ -227,13 +307,18 @@
 <div id="menu" class="layer hide">
   <div class="logo"><img class="odlogo" src="assets/logo_red.png" alt="OD Band"><div class="sub">Burdayım</div><div class="ask">Hangi OD Band kızısın?</div></div>
   <div class="arrows"><button id="prevBtn">‹</button><button id="nextBtn">›</button></div>
-  <div class="pick">
+  <div class="pick sheet">
     <div class="who" id="who"></div>
     <div class="faces" id="faces"></div>
-    <div class="row"><button class="go" id="goBtn">Koş ▶</button></div>
-    <div class="row"><button class="ghost agite" id="lookBtn"><img src="assets/agite_white.png" alt="AGITÉ"><span id="lookTxt"></span></button></div>
-    <div class="row"><button class="ghost" id="bandBtn">Ekip</button><button class="ghost" id="howBtn">Nasıl oynanır</button><button class="ghost hide" id="lbBtn">Skorlar</button><button class="ghost" id="muteBtn">Ses: açık</button></div>
-    <div class="best" id="bestTxt"></div>
+    <button class="go" id="goBtn">Koş ▶</button>
+    <div class="chips"><span class="chip" id="bestTxt"></span><span class="chip gold" id="bankTxt"></span><button class="chip agite" id="lookBtn"><img src="assets/agite_white.png" alt="AGITÉ"><span id="lookTxt"></span></button></div>
+    <div class="dock">
+      <button class="tile" id="wardBtn"><i>👗</i><span>Dolap</span></button>
+      <button class="tile" id="lbBtn"><i>🏆</i><span>Skorlar</span></button>
+      <button class="tile" id="bandBtn"><i>🎸</i><span>Ekip</span></button>
+      <button class="tile" id="howBtn"><i>❔</i><span>Nasıl</span></button>
+      <button class="tile" id="muteBtn"><i>🔊</i><span>Ses</span></button>
+    </div>
   </div>
 </div>
 
@@ -281,6 +366,27 @@
   <p style="margin-top:22px"><button class="go" data-close>Tamam</button></p>
 </div></div>
 
+<div id="rhythm" class="layer hide">
+  <div class="rhead"><span>SAHNE FİNALİ</span><b id="rhScore">0</b><em id="rhStreak"></em></div>
+  <div class="lane l0"></div><div class="lane l1"></div><div class="lane l2"></div>
+  <div class="hitline"><i>←</i><i>↓</i><i>→</i></div>
+</div>
+
+<div id="wardrobe" class="panel hide"><div class="card">
+  <h2>DOLAP</h2>
+  <p class="sub2">Topladığın penalar kasada birikir. Kasa: <b id="wardBank">0</b> 🎸</p>
+  <div id="wardTabs" class="tabs"><button data-c="trail">İz</button><button data-c="aura">Aura</button><button data-c="guitar">Sahne gitarı</button></div>
+  <div id="wardGrid" class="wgrid"></div>
+  <p style="margin-top:18px"><button class="go" data-close>Tamam</button></p>
+</div></div>
+
+<div id="story" class="panel hide"><div class="card">
+  <h2>STORY KARTIN</h2>
+  <img id="storyImg" class="storyimg" alt="">
+  <p style="margin-top:14px"><button class="go" id="storyShare">PAYLAŞ</button></p>
+  <p><button class="ghost" id="storySave">İNDİR</button> <button class="ghost" data-close>Kapat</button></p>
+</div></div>
+
 <div id="lb" class="panel hide"><div class="card">
   <h2>SKOR TABLOSU</h2>
   <p style="opacity:.7;font-size:13px">En yüksek 20 koşu</p>
@@ -294,6 +400,7 @@
   <p><b>↑</b> ya da yukarı kaydır: zıpla (amfiler, alarmlar). <b>↓</b> ya da aşağı kaydır: kay (çarşaflı ipler, bildirim bantları).</p>
   <p>Engele yandan sürtünürsen <b>gölge</b> yaklaşır. Kısa sürede bir daha sürtünürsen ya da önden çarparsan düşersin; o zaman grup gelip seni kaldırır.</p>
   <p>Penaları (Eylül'le bagetleri, Güneş'le notaları) topla. ☀️ <b>Güneş</b>: gölgeyi geri iter, birkaç saniye korur. 🎤 <b>Mikrofon</b>: penaları kendine çeker. 💿 <b>Modundayız</b>: plağın üstünde 5 saniye uçarsın, engeller altında kalır. Harfleri topla, sırası fark etmez: <b>BURDAYIM</b> tamamlanınca OD Band 15 saniyelik konser verir!</p>
+  <p>🔥 <b>Kombo:</b> çarpmadan art arda topladıkça puan x2, x3, x4 olur. 🎤 <b>Sahne finali:</b> konserde düşen notalara ekranın sol/orta/sağına (← ↓ →) ritimle dokun. 👗 <b>Dolap:</b> topladıkların kasada birikir; iz, aura ve sahne gitarı rengi aç. 📸 Oyun sonunda <b>story kartını</b> paylaş.</p>
   <p style="opacity:.7">Telefonda parmağını kaydırarak oyna. Bilgisayarda ok tuşları; P: duraklat · M: ses · K: konser</p>
   <p style="margin-top:22px"><button class="go" data-close>Tamam</button></p>
 </div></div>
@@ -305,11 +412,12 @@
   <img class="over-face" id="overFace" src="assets/f1.jpg" alt="">
   <div id="newBest" class="newbest hide">YENİ REKOR!</div>
   <div class="stat" id="overScore">0</div><div class="statl">PUAN</div>
-  <p style="margin-top:12px"><b id="overPicks">0</b> <span id="overItem">pena</span> · <b id="overDist">0</b> m · rekor <b id="overBest">0</b></p>
+  <p id="overBank" class="bankline"></p>
+  <p style="margin-top:6px"><b id="overPicks">0</b> <span id="overItem">pena</span> · <b id="overDist">0</b> m · rekor <b id="overBest">0</b></p>
   <div id="lbSave" class="lbsave hide"><input id="lbName" maxlength="16" placeholder="Adın / takma adın" autocomplete="nickname"><button class="go" id="lbSaveBtn">SKORU KAYDET</button><div id="lbMsg" class="lbmsg"></div></div>
   <ol id="lbMini" class="lblist hide"></ol>
   <p style="margin-top:20px"><button class="go" id="againBtn">Tekrar koş ▶</button></p>
-  <p><button class="ghost" id="shareBtn" style="text-transform:none">PUANIMI PAYLAŞ</button> <button class="ghost" id="menuBtn" style="text-transform:none">BAŞKA ÜYEYLE KOŞ</button></p>
+  <p><button class="ghost hot" id="storyBtn">📸 STORY KARTI</button> <button class="ghost" id="shareBtn" style="text-transform:none">PUANIMI PAYLAŞ</button> <button class="ghost" id="menuBtn" style="text-transform:none">BAŞKA ÜYEYLE KOŞ</button></p>
 </div></div>
 
 <div id="photoUi" class="layer hide">
@@ -322,6 +430,6 @@
 
 <div id="loading"><div><img src="assets/logo_red.png" alt="OD Band" style="width:min(56vw,260px);display:block;margin:0 auto 6px"><div class="lbar"><i id="lbar"></i></div><small id="ltxt">yükleniyor…</small></div></div>
 
-<script type="module" src="game.js?v=20261129l"></script>
+<script type="module" src="game.js?v=20261130c"></script>
 </body>
 </html>

@@ -1174,6 +1174,8 @@ shield.visible = false;
 // ------------------------------------------------------------------ state
 let state = 'loading', sel = +(localStorage.getItem('od3_sel') ?? 2) || 0;
 let player = null, menuGirls = [], friends = [], downT = 0, downReason = '', fallen = { x: 0, z: 0, yaw: 0 };
+const COMBO_WIN = 2.6; let combo = 0, comboT = 0, comboMult = 1, comboBest = 0;
+function comboBreak() { if (combo >= 10) showMsg('KOMBO BİTTİ', .9); combo = 0; comboT = 0; comboMult = 1; }
 let speed, seg, segI, s, lane, lat, py, vy, sliding, slideT, turnQ, stumbleT, gap, score, picks, dist, magnet, sunT, flyT = 0, letterIdx = 0, mult, deadT, fallY, camYaw;
 let downReasonShown = false; let songIdx = 0, best = +localStorage.getItem('od3_best') || 0, muted = localStorage.getItem('od3_muted') === '1';
 const clock = new THREE.Clock(); let hbT = 0;
@@ -1195,7 +1197,7 @@ function crowdCheer(dur = 2.4, vol = .22) { // synthesized crowd roar + scattere
   const src = a.createBufferSource(), bp = a.createBiquadFilter(), g = a.createGain(); bp.type = 'bandpass'; bp.frequency.value = 1400; bp.Q.value = .6; g.gain.value = vol;
   src.buffer = b; src.connect(bp).connect(g).connect(a.destination); src.start();
 }
-function setMuted(m) { muted = m; localStorage.setItem('od3_muted', m ? '1' : '0'); songs.forEach(a => a.muted = m); $('muteBtn').textContent = 'Ses: ' + (m ? 'kapalı' : 'açık'); }
+function setMuted(m) { muted = m; localStorage.setItem('od3_muted', m ? '1' : '0'); songs.forEach(a => a.muted = m); const mb = $('muteBtn'); mb.querySelector('i') ? (mb.querySelector('i').textContent = m ? '🔇' : '🔊', mb.querySelector('span').textContent = m ? 'Sessiz' : 'Ses') : (mb.textContent = 'Ses: ' + (m ? 'kapalı' : 'açık')); }
 setMuted(muted);
 function playSong(i, from = 0) { songs.forEach(a => a.pause()); songIdx = i; const a = songs[i]; try { a.currentTime = from; } catch (e) { } a.play().catch(() => { }); $('songName').textContent = SONGS[i].title; $('songArtist').textContent = SONGS[i].artist; }
 function nextSong() {
@@ -1216,7 +1218,7 @@ function applyWorld(name, k = 1) {
   sun.color.copy(c(from.sun, W.sun)); sun.intensity = lerp(from.sunI, W.sunI, k);
   hemi.color.copy(c(from.hemiSky, W.hemiSky)); hemi.groundColor.copy(c(from.hemiGround, W.hemiGround)); hemi.intensity = lerp(from.hemiI, W.hemiI, k);
   seaMat.color.copy(c(from.sea, W.sea)); bloom.strength = lerp(from.bloom, W.bloom, k);
-  { const R = { green: [0xfff2dc, .35], stone: [0xffd8b0, .45], beach: [0xffa070, .7], concert: [0xff5fc8, 1.0], night: [0x6fd8ff, .9] }, r0 = R[Object.keys(WORLDS).find(n => WORLDS[n] === from)] || R[name], r1 = R[name] || R.green; rimU.color.value.copy(c(r0[0], r1[0])); rimU.strength.value = lerp(r0[1], r1[1], k); }
+  { const R = { green: [0xfff2dc, .35], stone: [0xffd8b0, .45], beach: [0xffa070, .7], concert: [0xff5fc8, 1.0], night: [0x6fd8ff, .9] }, r0 = R[Object.keys(WORLDS).find(n => WORLDS[n] === from)] || R[name], r1 = R[name] || R.green; rimU.color.value.copy(c(r0[0], r1[0])); rimU.strength.value = lerp(r0[1], r1[1], k); applyAuraOverride(); }
   const cl = { green: 1, stone: .9, beach: .75, concert: .25, night: 0 }; const ca = lerp(cl[look.cur === WORLDS.green ? 'green' : Object.keys(WORLDS).find(n => WORLDS[n] === from) || name] ?? 1, cl[name] ?? 1, k);
   const tint = c(name === 'beach' ? 0xffd2c0 : 0xffffff, name === 'concert' ? 0x8a6ab8 : name === 'beach' ? 0xffc2b0 : 0xffffff);
   clouds.visible = false; // replaced by shader clouds in the dome
@@ -1238,7 +1240,7 @@ function disposeGroup(g) { g.traverse(o => { const geo = o.geometry; if (geo && 
 
 function newRun() {
   clearTrack(); songIdx = +(params.get('song') || 0); segI = 0; s = 0; genWorld = SONGS[songIdx].world === 'night' ? 'night' : (params.get('biome') || 'green'); setWorld(genWorld, true); clearFriends();
-  shownWorld = null; speed = 13; lane = 0; lat = 0; py = 0; vy = 0; sliding = false; slideT = 0; turnQ = null; stumbleT = 0; gap = 1; score = 0; picks = 0; dist = 0; magnet = 0; sunT = 0; flyT = 0; letterIdx = 0; letterGot.clear(); lastLetter = -1; gigPending = false; gig = null; mult = 1; deadT = 0; fallY = 0;
+  shownWorld = null; combo = 0; comboT = 0; comboMult = 1; comboBest = 0; speed = 13; lane = 0; lat = 0; py = 0; vy = 0; sliding = false; slideT = 0; turnQ = null; stumbleT = 0; gap = 1; score = 0; picks = 0; dist = 0; magnet = 0; sunT = 0; flyT = 0; letterIdx = 0; letterGot.clear(); lastLetter = -1; gigPending = false; gig = null; mult = 1; deadT = 0; fallY = 0;
   for (let i = 0; i < 4; i++) addSeg(i === 0);
   segI = 0; seg = segs[0]; camYaw = yawOf(seg.dir);
   if (player) scene.remove(player.holder);
@@ -1258,6 +1260,7 @@ function gameOver(reason) { // she falls; the band comes back for her
   sliding = false; vy = 0;
   playAct(player, 'fall', .12, 1.15);
   for (const o of seg.objs) if (o.mesh && o.s > s - 4 && o.s < s + 6) o.mesh.visible = false; // clear the stage for the band
+  bank += picks; localStorage.setItem('od3_bank', bank); if ($('overBank')) $('overBank').textContent = `+${picks} ${BAND[sel].item} kasaya · kasa ${bank}`;
   const sc = Math.floor(score); const nb = sc > best; if (nb) { best = sc; localStorage.setItem('od3_best', best); }
   $('overScore').textContent = sc; $('overPicks').textContent = picks; $('overDist').textContent = Math.floor(dist); $('overBest').textContent = best;
   $('newBest').classList.toggle('hide', !nb); $('overFace').src = faceSrc(sel); lbPrepare(sc);
@@ -1309,6 +1312,7 @@ function act(a) {
 }
 addEventListener('keydown', e => {
   const k = e.key;
+  if (state === 'gig' && rhythm) { const ln = { ArrowLeft: 0, a: 0, A: 0, ArrowDown: 1, ArrowUp: 1, s: 1, S: 1, w: 1, W: 1, ' ': 1, ArrowRight: 2, d: 2, D: 2 }[k]; if (ln !== undefined) { rhythmHit(ln); e.preventDefault(); return; } }
   if (k === 'ArrowLeft' || k === 'a' || k === 'A') act('left');
   else if (k === 'ArrowRight' || k === 'd' || k === 'D') act('right');
   else if (k === 'ArrowUp' || k === 'w' || k === 'W' || k === ' ') { state === 'run' ? act('up') : state === 'menu' && act('go'); }
@@ -1321,7 +1325,7 @@ addEventListener('keydown', e => {
   if (k.startsWith('Arrow') || k === ' ') e.preventDefault();
 });
 let touch = null;
-addEventListener('pointerdown', e => { ac(); touch = { x: e.clientX, y: e.clientY, used: false }; if (state === 'photo' && !e.target.closest?.('button')) shoot(); });
+addEventListener('pointerdown', e => { ac(); if (state === 'gig' && rhythm && !e.target.closest?.('button')) { rhythmHit(Math.min(2, Math.floor(e.clientX / innerWidth * 3))); return; } touch = { x: e.clientX, y: e.clientY, used: false }; if (state === 'photo' && !e.target.closest?.('button')) shoot(); });
 addEventListener('pointermove', e => { if (!touch || touch.used) return; const dx = e.clientX - touch.x, dy = e.clientY - touch.y; if (Math.hypot(dx, dy) > 28) { touch.used = true; if (Math.abs(dx) > Math.abs(dy)) act(dx < 0 ? 'left' : 'right'); else act(dy < 0 ? 'up' : 'down'); } });
 addEventListener('pointerup', () => touch = null);
 addEventListener('pointercancel', () => touch = null);
@@ -1380,7 +1384,7 @@ function lbPrepare(sc) { // called when the game-over panel is filled in
   $('lbSaveBtn').disabled = false; $('lbSaveBtn').textContent = 'SKORU KAYDET'; $('lbName').value = localStorage.getItem('od3_name') || '';
 }
 $('lbSaveBtn').onclick = lbSave; $('lbName').addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') lbSave(); });
-$('lbBtn').onclick = lbShow; $('lbBtn').classList.toggle('hide', !lbOn());
+$('lbBtn').onclick = lbShow; $('wardBtn').onclick = openWard; document.querySelectorAll('#wardTabs button').forEach(b => b.onclick = () => { wardCat = b.dataset.c; renderWard(); }); $('storyBtn').onclick = storyCard; $('lbBtn').classList.toggle('hide', !lbOn());
 document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => b.closest('.panel').classList.add('hide'));
 function buildFaces() { $('faces').innerHTML = [...Array(NGIRLS)].map((_, i) => `<button data-i="${i}" title="${BAND[i].name}"><img src="${faceSrc(i)}" alt="${BAND[i].name}"></button>`).join(''); $('faces').querySelectorAll('button').forEach(b => b.onclick = () => selGirl(+b.dataset.i)); }
 buildFaces();
@@ -1409,7 +1413,7 @@ function toMenu() {
   const ring = new THREE.Mesh(new THREE.RingGeometry(.55, .75, 40), new THREE.MeshBasicMaterial({ color: 0xffcf4a, transparent: true, opacity: .8 })); ring.rotation.x = -Math.PI / 2; ring.position.y = .02; ring.name = 'ring'; menuStage.add(ring);
   menuGirls = [...Array(NGIRLS).keys()].map(i => { const g = makeGirl(i); menuStage.add(g.holder); playAct(g, 'idle', 0, 1); if (g.actions.idle) g.actions.idle.time = i * .7; g.holder.rotation.y = Math.PI; return g; });
   selGirl(sel, true);
-  $('bestTxt').textContent = best ? `REKOR ${best}` : '';
+  $('bestTxt').textContent = best ? `🏆 REKOR ${best}` : '🏆 REKOR —'; if ($('bankTxt')) $('bankTxt').textContent = `🎸 KASA ${bank}`;
 }
 function menuSlot(i) { // selected girl front & centre, the others in a row behind her
   if (i === sel) return [0, .9];
@@ -1503,6 +1507,7 @@ function update(dt, t) {
     if (stumbleT > 0) stumbleT -= dt; else gap = Math.min(1, gap + dt * .07);
     if (magnet > 0) magnet -= dt;
     if (sunT > 0) { sunT -= dt; gap = Math.min(1, gap + dt * .6); }
+    if (comboT > 0) { comboT -= dt; if (comboT <= 0) comboBreak(); }
     { const air = py > .05; if (wasAir && !air && flyT <= 0) { player.squash = .2; landRing(player.holder.position, ({ green: 0xb89a6a, stone: 0xd0c8bc, beach: 0xead0a2, concert: 0xff8ad8 })[worldAt(seg, s)] || 0xdddddd); shake(.08, .15); } wasAir = air; }
     if (player.squash) { const q = player.squash; player.inner.scale.set(1 + q * .55, 1 - q, 1 + q * .55); player.squash *= Math.pow(.0006, dt); if (Math.abs(player.squash) < .005) { player.squash = 0; player.inner.scale.set(1, 1, 1); } }
     if (curWorld !== shownWorld && state === 'run') { shownWorld = curWorld; worldBanner(curWorld); }
@@ -1646,7 +1651,8 @@ function collide(dt) {
 }
 function collect(o) {
   o.done = true; o.mesh.getWorldPosition(tmp2); burst(tmp2, o.t === 'coin' ? 0xffd36b : o.t === 'letter' ? 0xffffff : 0xffb040, o.t === 'coin' ? 10 : 22); o.mesh.parent?.remove(o.mesh);
-  if (o.t === 'coin') { picks++; score += 10 * mult; sfx(1250 + (picks % 6) * 70, .06, 'square', .03); popText(tmp2, '+' + 10 * mult, mult === 2 ? 'gold' : ''); flyToCounter(tmp2); }
+  if (o.t === 'coin') { picks++; combo++; comboT = COMBO_WIN; const cm = Math.min(4, 1 + Math.floor(combo / 10)); if (cm > comboMult) { comboMult = cm; showMsg(`KOMBO x${cm}!`, 1.1); sfx(660 + cm * 110, .25, 'triangle', .07, 300); buzz(25); } comboBest = Math.max(comboBest, combo);
+    const pts = 10 * mult * comboMult; score += pts; sfx(1250 + (picks % 6) * 70, .06, 'square', .03); popText(tmp2, '+' + pts, comboMult > 1 || mult === 2 ? 'gold' : ''); flyToCounter(tmp2); }
   else if (o.t === 'sun') { popText(tmp2, 'GÜNEŞ', 'big'); sunT = 6; gap = 1; flash('#ffd36b', .55); showMsg('BİR GÜNEŞ DOĞAR…', 1.8); sfx(523, .4, 'sine', .08, 520); setTimeout(() => sfx(784, .5, 'sine', .07, 300), 120); }
   else if (o.t === 'mod') { flyT = 5; magnet = Math.max(magnet, 5); vy = 0; sliding = false; flash('#f7c41f', .5); showMsg('MODUNDASIN!', 1.8); buzz(60); sfx(392, .5, 'sawtooth', .05, 900); setTimeout(() => sfx(784, .4, 'triangle', .06, 400), 140); }
   else if (o.t === 'mic') { popText(tmp2, 'MİKROFON', 'big'); magnet = 9; showMsg('MİKROFON!', 1.2); sfx(880, .35, 'sawtooth', .04, 700); }
@@ -1659,12 +1665,74 @@ function collect(o) {
 function smash(o) { o.mesh.parent?.remove(o.mesh); noise(.2, .2, 3000); score += 25; }
 function stumble(o) {
   if (stumbleT > 0) { gameOver('İki kez tökezleyip düştün.'); return; }
-  shake(.35, .35); hitStop = .07; flash('#ff2a3a', .35); buzz(120); stumbleT = 4.5; gap = .2; noise(.25, .25, 1200); sfx(90, .3, 'sawtooth', .08, -40); showMsg('GÖLGE YAKLAŞIYOR!', 1.4);
+  comboBreak(); shake(.35, .35); hitStop = .07; flash('#ff2a3a', .35); buzz(120); stumbleT = 4.5; gap = .2; noise(.25, .25, 1200); sfx(90, .3, 'sawtooth', .08, -40); showMsg('GÖLGE YAKLAŞIYOR!', 1.4);
   lane = clamp(Math.round(lat / LANE) + (lat > o.lane * LANE ? 1 : -1) * 0, -1, 1);
 }
 let lastHud = 0;
+// ------------------------------------------------------------------ wardrobe: unlock trails, auras and stage-guitar colours with collected items
+let bank = +localStorage.getItem('od3_bank') || 0;
+const WARD = [
+  { id: 'trail:none', cat: 'trail', name: 'İz yok', price: 0, sw: 'linear-gradient(135deg,#333,#555)' },
+  { id: 'trail:neon', cat: 'trail', name: 'Neon Pembe', price: 100, cols: [0xff3d9a, 0xff8ad8], sw: 'linear-gradient(135deg,#ff3d9a,#ff8ad8)' },
+  { id: 'trail:gold', cat: 'trail', name: 'Altın Pena', price: 200, cols: [0xffd23a, 0xffe9a0], sw: 'linear-gradient(135deg,#ffb400,#fff0a0)' },
+  { id: 'trail:sea', cat: 'trail', name: 'Turkuaz Dalga', price: 300, cols: [0x4de1ff, 0x9af2ff], sw: 'linear-gradient(135deg,#1fb6ff,#9af2ff)' },
+  { id: 'trail:rainbow', cat: 'trail', name: 'Gökkuşağı', price: 500, rainbow: true, sw: 'linear-gradient(135deg,#ff4f6d,#ffd23a,#4dff9a,#4de1ff,#a66bff)' },
+  { id: 'aura:auto', cat: 'aura', name: 'Dünyaya göre', price: 0, sw: 'radial-gradient(circle,#fff,#ffb070)' },
+  { id: 'aura:pink', cat: 'aura', name: 'Pembe Aura', price: 150, col: 0xff4fc0, k: 1, sw: 'radial-gradient(circle,#fff,#ff4fc0)' },
+  { id: 'aura:cyan', cat: 'aura', name: 'Buz Aura', price: 150, col: 0x5fe8ff, k: 1, sw: 'radial-gradient(circle,#fff,#5fe8ff)' },
+  { id: 'aura:gold', cat: 'aura', name: 'Altın Aura', price: 300, col: 0xffc83a, k: 1.1, sw: 'radial-gradient(circle,#fff,#ffc83a)' },
+  { id: 'guitar:classic', cat: 'guitar', name: 'Klasik', price: 0, sw: 'linear-gradient(135deg,#7a4a2a,#c4142c)' },
+  { id: 'guitar:red', cat: 'guitar', name: 'Kırmızı', price: 100, col: 0xd4202c, sw: 'linear-gradient(135deg,#8a0f18,#ff3b4e)' },
+  { id: 'guitar:purple', cat: 'guitar', name: 'Mor', price: 200, col: 0x7b3cff, sw: 'linear-gradient(135deg,#3a1080,#a66bff)' },
+  { id: 'guitar:gold', cat: 'guitar', name: 'Altın', price: 400, col: 0xe8b400, sw: 'linear-gradient(135deg,#a07000,#ffe27a)' },
+];
+const owned = new Set(JSON.parse(localStorage.getItem('od3_owned') || '[]')); WARD.filter(w => !w.price).forEach(w => owned.add(w.id));
+const equip = Object.assign({ trail: 'trail:none', aura: 'aura:auto', guitar: 'guitar:classic' }, JSON.parse(localStorage.getItem('od3_equip') || '{}'));
+const wItem = cat => WARD.find(w => w.id === equip[cat]);
+function saveWard() { localStorage.setItem('od3_owned', JSON.stringify([...owned])); localStorage.setItem('od3_equip', JSON.stringify(equip)); localStorage.setItem('od3_bank', bank); }
+let wardCat = 'trail';
+function renderWard() {
+  $('wardBank').textContent = bank; document.querySelectorAll('#wardTabs button').forEach(b => b.classList.toggle('on', b.dataset.c === wardCat));
+  $('wardGrid').innerHTML = WARD.filter(w => w.cat === wardCat).map(w => { const own = owned.has(w.id), on = equip[w.cat] === w.id;
+    return `<button class="witem${on ? ' on' : ''}${!own && bank < w.price ? ' locked' : ''}" data-id="${w.id}"><i style="background:${w.sw}"></i><b>${w.name}</b><span>${on ? 'SEÇİLİ' : own ? 'SEÇ' : `🎸 ${w.price}`}</span></button>`; }).join('');
+  $('wardGrid').querySelectorAll('.witem').forEach(b => b.onclick = () => { const w = WARD.find(x => x.id === b.dataset.id);
+    if (!owned.has(w.id)) { if (bank < w.price) { b.classList.add('nope'); setTimeout(() => b.classList.remove('nope'), 400); sfx(160, .15, 'square', .04); return; } bank -= w.price; owned.add(w.id); sfx(880, .2, 'triangle', .06, 400); }
+    equip[w.cat] = w.id; saveWard(); renderWard(); applyAuraOverride(); }); }
+function openWard() { $('wardrobe').classList.remove('hide'); renderWard(); }
+function applyAuraOverride() { const a = wItem('aura'); if (a && a.col) { rimU.color.value.set(a.col); rimU.strength.value = a.k; } }
+let trailT = 0;
+function trailFx(dt) { const tr = wItem('trail'); if (!tr || !tr.price && !tr.rainbow && !tr.cols || state !== 'run' || !player) return; trailT -= dt; if (trailT > 0) return; trailT = .025;
+  const p = player.holder.position, d = DIRS[seg.dir]; const col = tr.rainbow ? new THREE.Color().setHSL((performance.now() / 900) % 1, .9, .6).getHex() : pick(tr.cols);
+  emit(tmp2.set(p.x - d[0] * .3 + rand(-.12, .12), py + rand(.5, 1.2), p.z - d[1] * .3 + rand(-.12, .12)), col, rand(-.2, .2), rand(1.5, 3), rand(-.2, .2), rand(.25, .45)); }
+// ------------------------------------------------------------------ Instagram story card (1080×1920 image of this run)
+function loadImg(src) { return new Promise(r => { const i = new Image(); i.onload = () => r(i); i.onerror = () => r(null); i.src = src; }); }
+async function makeStoryCard() {
+  const W = 1080, H = 1920, c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
+  const pal = { green: ['#1f4a2c', '#6fae5a', '#f6e7c4'], stone: ['#3b2a3f', '#c98a6a', '#ffd4a0'], beach: ['#2d2c6e', '#d8687a', '#ffb36b'], concert: ['#0c0826', '#5a2a8e', '#ff5fa8'] }[curWorld] || ['#140a16', '#e8433b', '#ffcf4a'];
+  const bg = g.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, pal[0]); bg.addColorStop(.6, pal[1]); bg.addColorStop(1, pal[2]); g.fillStyle = bg; g.fillRect(0, 0, W, H);
+  for (let i = 0; i < 2600; i++) { g.fillStyle = `rgba(255,255,255,${Math.random() * .06})`; g.fillRect(Math.random() * W, Math.random() * H, 2, 2); }
+  g.save(); g.globalAlpha = .12; g.fillStyle = '#fff'; g.font = '420px Anton, Impact'; g.textAlign = 'center'; g.translate(W / 2, H * .55); g.rotate(-.12); g.fillText('OD', 0, 0); g.restore();
+  if (LOGO.red) { const lw = 560, lh = LOGO.red.height * lw / LOGO.red.width; g.drawImage(LOGO.red, (W - lw) / 2, 110, lw, lh); }
+  g.textAlign = 'center'; g.fillStyle = '#ffe3a0'; g.font = '96px Anton, Impact'; g.fillText('BURDAYIM', W / 2, 720);
+  const face = await loadImg(faceSrc(sel)); const R = 210, cx = W / 2, cy = 1000;
+  g.save(); g.beginPath(); g.arc(cx, cy, R + 16, 0, 7); g.fillStyle = '#ffcf4a'; g.fill(); g.beginPath(); g.arc(cx, cy, R, 0, 7); g.clip(); if (face) g.drawImage(face, cx - R, cy - R, R * 2, R * 2); g.restore();
+  g.fillStyle = '#fff'; g.font = '84px Anton, Impact'; g.fillText(BAND[sel].name.toUpperCase(), W / 2, 1300); g.font = '800 38px Manrope, sans-serif'; g.fillStyle = 'rgba(255,255,255,.8)'; g.fillText(BAND[sel].role || '', W / 2, 1352);
+  g.fillStyle = 'rgba(0,0,0,.35)'; const rr = (x, y, w, h, r) => { g.beginPath(); g.roundRect(x, y, w, h, r); g.fill(); }; rr(150, 1410, 780, 250, 40);
+  g.fillStyle = '#ffcf4a'; g.font = '800 34px Manrope, sans-serif'; g.fillText('SKORUM', W / 2, 1468); g.fillStyle = '#fff'; g.font = '150px Anton, Impact'; g.fillText(String(Math.floor(score)), W / 2, 1620);
+  g.font = '800 40px Manrope, sans-serif'; g.fillStyle = '#1a0d1e'; g.fillText(`${Math.floor(dist)} m  ·  ${picks} ${BAND[sel].item}  ·  en iyi kombo ${comboBest}`, W / 2, 1730);
+  g.fillStyle = 'rgba(20,8,24,.82)'; rr(300, 1778, 480, 92, 46); g.fillStyle = '#ffe3a0'; g.font = '58px Anton, Impact'; g.fillText('ODBAND.LOVE', W / 2, 1844);
+  return c;
+}
+async function storyCard() { const c = await makeStoryCard(); const url = c.toDataURL('image/jpeg', .92); $('storyImg').src = url; $('story').classList.remove('hide');
+  $('storyShare').onclick = async () => { try { const blob = await (await fetch(url)).blob(); const file = new File([blob], 'odband-burdayim.jpg', { type: 'image/jpeg' });
+      if (navigator.canShare?.({ files: [file] })) { await navigator.share({ files: [file], title: 'OD Band – Burdayım', text: 'odband.love' }); return; } } catch (e) { }
+    const a = document.createElement('a'); a.href = url; a.download = 'odband-burdayim.jpg'; a.click(); };
+  $('storySave').onclick = () => { const a = document.createElement('a'); a.href = url; a.download = 'odband-burdayim.jpg'; a.click(); }; }
 function confettiDom() { const box = $('over'); for (let i = 0; i < 70; i++) { const c = document.createElement('i'); c.className = 'conf'; c.style.left = rand(5, 95) + '%'; c.style.background = pick(['#ff4fa3', '#4de1ff', '#ffd23a', '#a66bff', '#fff']); c.style.animationDelay = rand(0, .6) + 's'; c.style.setProperty('--x', rand(-120, 120) + 'px'); c.style.setProperty('--r', rand(-720, 720) + 'deg'); box.appendChild(c); setTimeout(() => c.remove(), 3200); } }
+function comboHUD() { const el = $('combo'); if (!el) return; const on = state === 'run' && combo >= 3; el.classList.toggle('on', on); if (!on) return;
+  el.querySelector('b').textContent = comboMult > 1 ? 'x' + comboMult : combo; el.querySelector('span').textContent = comboMult > 1 ? combo + ' KOMBO' : 'KOMBO'; el.querySelector('i').style.transform = `scaleX(${Math.max(0, comboT / COMBO_WIN).toFixed(3)})`; }
 function updateHUD() {
+  comboHUD();
   const sc = Math.floor(score); if (sc !== lastHud) { $('score').textContent = sc; lastHud = sc; }
   $('picks').textContent = picks;
   const ring = (ic, lab, v, max, col) => `<div class="pw"><i style="--p:${Math.max(0, Math.min(1, v / max)).toFixed(3)};--c:${col}">${ic}</i>${lab}</div>`;
@@ -1718,7 +1786,8 @@ function guitarProp(i, bass) {
   const h = bass ? 1.15 : 1.0; g.children[0].position.y -= h * .24;
   // body colour per member and wardrobe (look 2 = the AGITÉ video: Sude black, Öykü blush pink, Umay pink bass)
   const tint = bass ? (LOOK === 2 ? 0xf4b6c8 : null) : i === 4 ? (LOOK === 2 ? 0xe9b9ad : 0xc4142c) : (LOOK === 2 ? 0x161616 : null);
-  if (tint !== null) g.traverse(o => { if (!o.isMesh || !o.material) return;
+  const gw = wItem('guitar'); const tint2 = gw && gw.col ? gw.col : tint;
+  if (tint2 !== null) g.traverse(o => { if (!o.isMesh || !o.material) return; const tint = tint2;
     if (bass) { if (o.material.name === 'Wood2Bass1') { o.material = o.material.clone(); o.material.color.set(tint); } }
     else if (o.material.map) { o.material = o.material.clone(); o.material.map = tintedGuitarTex(o.material.map, tint); } });
   return g;
@@ -1791,13 +1860,33 @@ function gigCamera(dt, t) {
   camera.lookAt(gig.look);
 }
 function canStartGig() { return seg.len - s > 46 && s > 6; }
+let rhythm = null; const NOTE_TRAVEL = 1.35, LANES = 3;
+function rhythmStart() { const spb = 60 / BPM, notes = []; let lastLane = 1;
+  for (let tn = 2.2; tn < GIG_LEN - .4; tn += spb) { let ln = Math.floor(Math.random() * 3); if (ln === lastLane && Math.random() < .5) ln = (ln + 1 + Math.floor(Math.random() * 2)) % 3; lastLane = ln; notes.push({ tn, ln }); if (Math.random() < .18 && tn > 5) notes.push({ tn: tn + spb / 2, ln: (ln + 1) % 3 }); }
+  rhythm = { notes, score: 0, streak: 0, best: 0, hits: 0, total: notes.length }; const lay = $('rhythm'); lay.querySelectorAll('.note,.rj').forEach(n => n.remove()); lay.classList.remove('hide'); $('rhScore').textContent = '0'; $('rhStreak').textContent = ''; }
+function rhythmUpdate() { if (!rhythm) return; const T = gig.t, lay = $('rhythm'), H = lay.clientHeight, hitY = H * .82;
+  for (const n of rhythm.notes) { const dtn = n.tn - T; if (n.done) continue;
+    if (dtn > NOTE_TRAVEL) continue; if (!n.el) { n.el = document.createElement('div'); n.el.className = 'note l' + n.ln; lay.appendChild(n.el); }
+    n.el.style.transform = `translate(-50%, ${(hitY - dtn / NOTE_TRAVEL * hitY * .9).toFixed(1)}px)`;
+    if (dtn < -.22) { n.done = true; n.el.classList.add('miss'); setTimeout(() => n.el?.remove(), 300); rhythm.streak = 0; $('rhStreak').textContent = ''; } }
+  if (T > GIG_LEN) rhythmEnd(); }
+function rhythmHit(ln) { if (!rhythm) return; const T = gig.t; let best = null, bd = 9;
+  for (const n of rhythm.notes) if (!n.done && n.ln === ln && Math.abs(n.tn - T) < bd) { bd = Math.abs(n.tn - T); best = n; }
+  const lane = document.querySelector('#rhythm .lane.l' + ln); lane?.classList.remove('hit'); void lane?.offsetWidth; lane?.classList.add('hit');
+  if (!best || bd > .22) { sfx(140, .08, 'square', .03); return; }
+  best.done = true; best.el?.remove(); const [pts, lab] = bd < .08 ? [50, 'MÜKEMMEL'] : bd < .15 ? [25, 'İYİ'] : [10, 'OLDU'];
+  rhythm.streak++; rhythm.best = Math.max(rhythm.best, rhythm.streak); rhythm.hits++; const gain = pts + Math.min(50, rhythm.streak * 2); rhythm.score += gain;
+  $('rhScore').textContent = rhythm.score; $('rhStreak').textContent = rhythm.streak >= 3 ? rhythm.streak + ' SERİ' : '';
+  const j = document.createElement('div'); j.className = 'rj l' + ln; j.textContent = lab; $('rhythm').appendChild(j); setTimeout(() => j.remove(), 600);
+  sfx([523, 659, 784][ln] * (bd < .08 ? 2 : 1), .12, 'triangle', .07); buzz(15); }
+function rhythmEnd() { if (!rhythm) return; const r = rhythm; rhythm = null; $('rhythm').classList.add('hide'); score += r.score; showMsg(`SAHNE +${r.score}`, 2); if (r.hits / Math.max(1, r.total) > .8) { flash('#ffd23a', .3); crowdCheer(2.2, .25); } }
 function startGig() {
   state = 'gig'; gigPending = false;
   const s0 = s + 9; // stage front
   for (const o of seg.objs) if (o.mesh && o.s > s - 2 && o.s < s0 + 30) { o.mesh.visible = false; o.done = true; }
   for (const ch of seg.group.children) if (ch.userData.overhead !== undefined && ch.userData.overhead > s0 - 22 && ch.userData.overhead < s0 + 8) ch.visible = false; // laundry lines would hang in front of the stage
   const stage = gigStage(); put(seg, stage, s0, 0, 0);
-  gig = { t: 0, s0, stage, band: [], props: [], savedSpeed: speed, startS: s, startLat: lat };
+  gig = { t: 0, s0, stage, band: [], props: [], savedSpeed: speed, startS: s, startLat: lat }; rhythmStart();
   gigVideo.play().then(() => { stage.userData.screen.material.map = gigVideoTex; stage.userData.screen.material.needsUpdate = true; }).catch(() => { });
   gig.props.push(gigAudience(s0));
   gig.pg = makePhotographer(); if (gig.pg) { gig.pg.holder.position.copy(segPoint(seg, s0 - 1.0, -4.3)); gig.pg.mixer?.update(0); faceTo(gig.pg, segPoint(seg, s0 + 1.5, -1.5)); }
@@ -1818,7 +1907,7 @@ let gigPending = false; const _gv = new THREE.Vector3();
 // two coloured wash lights live in the scene from the start (intensity 0) so the gig never triggers a shader recompile
 const stageLights = [new THREE.PointLight(0xff3d9a, 0, 14, 1.2), new THREE.PointLight(0x4de1ff, 0, 14, 1.2)]; stageLights.forEach(l => scene.add(l));
 function updateGig(dt, t) {
-  gig.t += dt; const T0 = gig.t;
+  gig.t += dt; const T0 = gig.t; rhythmUpdate();
   const face = yawOf(seg.dir) + Math.PI; // band faces the audience (back toward where we came from)
   for (const g of gig.band) {
     const st = g.gig; g.mixer?.update(dt);
@@ -1931,6 +2020,7 @@ function makePhotographer() { // our DoP with his camera (falls back to a crowd 
 }
 function photographerFlash(pg) { const p = pg.cam.getWorldPosition(new THREE.Vector3()); for (let k = 0; k < 14; k++) emit(p, 0xffffff, rand(-1.5, 1.5), rand(-.5, 1.5), rand(-1.5, 1.5), .18); sfx(2600, .03, 'square', .015); }
 function startPhoto() {
+  if (rhythm) rhythmEnd();
   // clear the stage, keep the chosen girl in front of it
   for (const g of gig.band) if (g !== player) scene.remove(g.holder);
   for (const p of gig.props) p.parent?.remove(p);
@@ -2052,7 +2142,7 @@ function updateParticles(dt) {
       else if (!st.armed && y > st.min + .14) st.armed = true; }); }
   for (let i = 0; i < SMAX; i++) { if (sLife[i] <= 0) { if (sPos[i * 3 + 1] > -50) sPos[i * 3 + 1] = -99; continue; } sLife[i] -= dt; sVel[i * 3 + 1] -= sGrav[i] * dt; const drag = 1 - Math.min(1, dt * 1.8); sVel[i * 3] *= drag; sVel[i * 3 + 2] *= drag;
     sPos[i * 3] += sVel[i * 3] * dt; sPos[i * 3 + 1] = Math.max(.02, sPos[i * 3 + 1] + sVel[i * 3 + 1] * dt); sPos[i * 3 + 2] += sVel[i * 3 + 2] * dt; if (sLife[i] <= 0) sPos[i * 3 + 1] = -99; }
-  ambience(dt);
+  ambience(dt); trailFx(dt);
   blob.visible = (state === 'run' || state === 'down') && !!player; if (blob.visible) { const p = player.holder.position; blob.position.set(p.x, .025, p.z); const k = 1 / (1 + py * .35); blob.scale.setScalar(k); blob.material.opacity = Math.max(.15, k); }
   sGeo.attributes.position.needsUpdate = true; sGeo.attributes.color.needsUpdate = true;
   for (let i = 0; i < PMAX; i++) { if (pLife[i] <= 0) { pPos[i * 3 + 1] = -99; continue; } pLife[i] -= dt; pVel[i * 3 + 1] -= 9 * dt;
