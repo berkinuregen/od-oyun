@@ -693,7 +693,26 @@ function sprinkle(seg, a, b, side, l0, l1, n, keys, h0, h1, shadow) {
   for (let i = 0; i < n; i++) { const k = pick(keys.filter(x => ENV[x])); if (!k) return; (by[k] ||= []).push([rand(a, b), side * rand(l0, l1), rand(h0, h1)]); }
   for (const k in by) scatter(seg, k, by[k], shadow);
 }
+// roadside billboard with the IF Performance Hall gig poster (OD Band, 29 Kasım)
+let adTex = null; const AD_ASPECT = 734 / 865;
+function adMat() { if (!adTex) { adTex = new THREE.TextureLoader().load('assets/if_afis.jpg'); adTex.colorSpace = THREE.SRGBColorSpace; adTex.anisotropy = 8; }
+  return adMat.m ||= new THREE.MeshStandardMaterial({ map: adTex, emissive: 0xffffff, emissiveMap: adTex, emissiveIntensity: .55, roughness: .6 }); }
+function billboard(seg, s, side, w) {
+  const H = ROAD_W / 2, g = new THREE.Group(); const big = w === 'concert', ph = big ? 5.6 : 4.0, pw = ph * AD_ASPECT;
+  const poster = new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), adMat());
+  if (w === 'stone') { // pasted on a facade
+    poster.position.y = 2.6; g.add(poster); const fr = new THREE.Mesh(G.box, M.metal); fr.scale.set(pw + .16, ph + .16, .05); fr.position.set(0, 2.6, -.04); g.add(fr);
+    g.rotation.y = -side * Math.PI / 2; put(seg, g, s, side * (H + 1.42), 0); return; }
+  const legH = big ? 4.2 : 2.6; poster.position.y = legH + ph / 2; g.add(poster);
+  const back = new THREE.Mesh(G.box, M.ampSide); back.scale.set(pw + .3, ph + .3, .18); back.position.set(0, legH + ph / 2, -.12); g.add(back);
+  for (const x of [-pw * .3, pw * .3]) { const l = new THREE.Mesh(G.box, M.metal); l.scale.set(.16, legH, .16); l.position.set(x, legH / 2, -.2); g.add(l); }
+  for (const x of [-pw * .3, pw * .3]) { const lamp = new THREE.Mesh(G.box, M.metal); lamp.scale.set(.5, .08, .35); lamp.position.set(x, legH + ph + .35, .3); g.add(lamp);
+    const bulb = new THREE.Mesh(G.sphere, new THREE.MeshBasicMaterial({ color: new THREE.Color(1, .95, .8).multiplyScalar(2.5), toneMapped: false })); bulb.scale.setScalar(.09); bulb.position.set(x, legH + ph + .28, .45); g.add(bulb); }
+  g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  g.rotation.y = -side * .45; put(seg, g, s, side * (H + (big ? 12.5 : 3.6) + pw * .25), 0);
+}
 function fillLand(seg, w, a, b) {
+  if (Math.random() < (params.has('ad') ? 1 : .45)) { const lo = Math.max(a, 16), hi = Math.min(b, seg.len - 16); if (hi > lo) billboard(seg, rand(lo, hi), w === 'beach' ? 1 : (Math.random() < .5 ? -1 : 1), w); }
   const H = ROAD_W / 2;
   if (w === 'green') for (const side of [-1, 1]) {
     sprinkle(seg, a, b, side, H + 1.2, H + 30, 1.1, ['grass', 'grass2'], .45, .85);
