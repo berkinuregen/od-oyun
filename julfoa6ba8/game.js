@@ -465,7 +465,7 @@ function buildSegment(seg, first) {
     buildPart(seg, seg.world, seg.mid, sEnd, false, true);
     gate(seg, seg.from, seg.world, seg.mid);
   } else buildPart(seg, seg.world, s0, sEnd, true, true);
-  if (seg._trees) { for (const k in seg._trees) scatter(seg, k, seg._trees[k], true); seg._trees = null; }
+  if (seg._trees) { for (const k in seg._trees) scatter(seg, k, seg._trees[k], !MOBILE); seg._trees = null; }
   cornerWall(seg); cornerFillet(seg);
   const arrow = new THREE.Mesh(new THREE.PlaneGeometry(3, 3), new THREE.MeshBasicMaterial({ map: arrowTex(seg.turn), transparent: true, depthWrite: false }));
   arrow.rotation.x = -Math.PI / 2; put(seg, arrow, seg.len - 9, 0, .02);
@@ -656,9 +656,9 @@ function crowdTick(t) {
   for (const g of CROWD.groups) for (const tg of g.userData.toggles) { const on = (Math.floor(t * tg.rate) + tg.ph) % 2; tg.poses[0].forEach(im => im.visible = on === 0); tg.poses[1].forEach(im => im.visible = on === 1); }
 }
 function crowd(seg, side, a, b) {
-  const near = MOBILE ? 2 : 3, rows = MOBILE ? 4 : 6, spots = [], far = [];
+  const near = MOBILE ? 1 : 2, rows = MOBILE ? 4 : 6, spots = [], far = []; // only the front rows are full models (perf)
   const yaw = side > 0 ? -Math.PI / 2 : Math.PI / 2; // face the road
-  for (let r = 0; r < rows; r++) for (let s = a + rand(0, .6); s < b; s += rand(1.0, 1.5)) {
+  for (let r = 0; r < rows; r++) for (let s = a + rand(0, .6); s < b; s += r < near ? rand(1.3, 1.8) : rand(1.0, 1.5)) {
     const p = { x: side * (ROAD_W / 2 + 1.5 + r * 1.8 + rand(-.3, .3)), z: -s, yaw };
     (r < near ? spots : far).push(p);
   }
@@ -832,12 +832,13 @@ function fillLand(seg, w, a, b) {
     sprinkle(seg, a, b, side, H + 1.2, H + 30, 1.1, ['grass', 'grass2'], .45, .85);
     sprinkle(seg, a, b, side, H + 2.5, H + 26, .22, ['bush2', 'rosebush', 'flowerbush'], .7, 1.3);
     sprinkle(seg, a, b, side, H + 3, H + 40, .08, ['stone'], .35, .9);
-    sprinkle(seg, a, b, side, H + 12, H + 55, .35, ENV.treeA ? ['treeA', 'treeB', 'treeC', 'treeD', 'canopy', 'treeA', 'treeB'] : ['tree1', 'tree2', 'tree3', 'tree4', 'tree6'], 5, 8.5);
+    sprinkle(seg, a, b, side, H + 12, H + 26, .16, ENV.treeA ? ['treeA', 'treeB', 'treeC', 'treeD', 'canopy'] : ['tree1', 'tree2', 'tree3', 'tree4', 'tree6'], 5, 8.5);
+    sprinkle(seg, a, b, side, H + 26, H + 55, .2, ['tree1', 'tree2', 'tree3', 'tree4', 'canopy'], 5, 8);
     sprinkle(seg, a, b, side, H + 46, H + 72, .16, ENV.pineA ? ['pineA', 'pineB', 'pineC'] : ['pines'], ENV.pineA ? 9 : 4, ENV.pineA ? 13 : 5.5);
     if (Math.random() < .35) { const s0 = rand(a + 15, b - 15), l = rand(H + 16, H + 30); scatter(seg, 'tent', Array.from({ length: 3 + Math.floor(rand(0, 3)) }, () => [s0 + rand(-7, 7), side * (l + rand(-4, 4)), rand(1.2, 1.5)])); }
   } else if (w === 'stone') for (const side of [-1, 1]) {
-    for (const [l, h0, h1] of [[H + 14, 10, 13], [H + 26, 13, 17]]) { // rooftops behind the street
-      const keys = ['house1', 'house2', 'house4'].filter(k => ENV[k]); if (!keys.length) break; const by = {};
+    for (const [l, h0, h1] of (MOBILE ? [[H + 14, 10, 13]] : [[H + 14, 10, 13], [H + 26, 13, 17]])) { // rooftops behind the street
+      const keys = ['house1', 'house2', 'house3'].filter(k => ENV[k]); /* back rows: the lighter house models */ if (!keys.length) break; const by = {};
       for (let q = Math.max(a, 11); q < Math.min(b, seg.len - 14);) { const k = pick(keys), sz = ENV[k].userData.size, h = rand(h0, h1), wd = sz.x * h / sz.y; (by[k] ||= []).push([q + wd / 2, side * (l + sz.z * h / sz.y / 2), h, -side * Math.PI / 2]); q += wd + rand(.2, 1.2); }
       for (const k in by) scatter(seg, k, by[k]);
     }
@@ -1741,7 +1742,7 @@ function gigStage() {
   return g;
 }
 function gigAudience(s0) {
-  const g = new THREE.Group(); const rows = MOBILE ? 6 : 10, spots = [];
+  const g = new THREE.Group(); const rows = MOBILE ? 5 : 8, spots = [];
   for (let r = 0; r < rows; r++) for (let x = -9.2 + (r % 2) * .45; x <= 9.2; x += rand(.85, 1.1)) if (Math.abs(x) > 1.5) // keep a camera aisle down the middle
     spots.push({ x: x + rand(-.15, .15), z: -(s0 - 1.7 - r * 1.15 + rand(-.2, .2)), yaw: Math.PI }); // facing the stage
   g.add(buildCrowd(spots, .14));
@@ -2061,10 +2062,14 @@ function updateLyrics() {
   el.innerHTML = L.w.map((w, i) => `<span class="${i < k ? 'on' : ''}">${w.w}</span>`).join(' '); el.classList.add('show');
 }
 // ------------------------------------------------------------------ main loop
+// QA hooks (only with #qa in the URL): metrics + optional autopilot bot (#qa&bot)
+const QA = location.hash.includes('qa') ? { n: 0, acc: 0, fps: 0, minFps: 999, bot: location.hash.includes('bot') } : null;
+if (QA) window.__qa = () => ({ state, segI, s: +(s || 0).toFixed(1), world: curWorld, score: Math.floor(score || 0), dist: Math.floor(dist || 0), fps: +QA.fps.toFixed(1), minFps: +QA.minFps.toFixed(1), calls: renderer.info.render.calls, tris: renderer.info.render.triangles, geos: renderer.info.memory.geometries, tex: renderer.info.memory.textures, pr: renderer.getPixelRatio(), gl: renderer.getContext().getParameter(renderer.getContext().VERSION) });
 function frame() {
   const dt = Math.min(.05, clock.getDelta()), t = clock.elapsedTime;
   if (state !== 'loading') { update(dt, t); updateParticles(dt); adaptResolution(dt); updateLyrics(); }
-  if (state === 'run') { const f = (camera.aspect < .8 ? 70 : 58) + (speed - 13) * .45; if (Math.abs(camera.fov - f) > .05) { camera.fov += (f - camera.fov) * Math.min(1, dt * 2); camera.updateProjectionMatrix(); } }
+  if (QA) { QA.n++; QA.acc += dt; if (QA.acc >= 1) { QA.fps = QA.n / QA.acc; QA.n = 0; QA.acc = 0; QA.minFps = Math.min(QA.minFps, QA.fps); } if (QA.bot && state === 'run') autopilot(); }
+  if (QA) { renderer.info.autoReset = false; renderer.info.reset(); }
   composer.render();
   if (captureNext) {
     try {
