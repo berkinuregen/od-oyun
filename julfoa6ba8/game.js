@@ -52,6 +52,7 @@ const SONGS = [
     chorus: [[47, 68], [118, 138], [138, 148]] },
 ];
 const WORLDS = {
+  menu: { fog: 0xdfe6e4, fogNear: 40, fogFar: 200, skyTop: 0x5f84b4, skyMid: 0xbfd0de, skyBot: 0xe6ebe6, sun: 0xfff7ec, sunI: 2.5, hemiSky: 0xeef4ff, hemiGround: 0x4f6544, hemiI: 1.1, sea: 0x5f8a3e, bloom: .22, stars: 0, fill: .5, spec: 0x000000 },
   green: { fog: 0xd6e2cf, fogNear: 50, fogFar: 240, skyTop: 0x3a6fc0, skyMid: 0x9cc4e4, skyBot: 0xf6e7c4, sun: 0xfff0d2, sunI: 2.9, hemiSky: 0xdcefff, hemiGround: 0x56703a, hemiI: 1.15, sea: 0x5f8a3e, bloom: .35, stars: 0, fill: .45, spec: 0x000000 },
   stone: { fog: 0xf0cfae, fogNear: 45, fogFar: 230, skyTop: 0x44609f, skyMid: 0xe9b38c, skyBot: 0xffd4a0, sun: 0xffd9aa, sunI: 2.7, hemiSky: 0xffe6cc, hemiGround: 0x6a5444, hemiI: 1.1, sea: 0xb9a184, bloom: .4, stars: 0, fill: .5, spec: 0x000000 },
   beach: { fog: 0xf0a07a, fogNear: 45, fogFar: 230, skyTop: 0x2d2c6e, skyMid: 0xd8687a, skyBot: 0xffb36b, sun: 0xffd2a0, sunI: 2.6, hemiSky: 0xffc9a8, hemiGround: 0x5a3c58, hemiI: 1.1, sea: 0x6b4a7a, bloom: .55, stars: 0, fill: .5, spec: 0xffd0a0 },
@@ -174,7 +175,7 @@ function buildFar(world) {
     beach: { haze: 0xf0a07a, L: [[760, 40, 140, 0x6a3f6e, 0x9a5a86, .5, 0, 1.4], [600, 15, 75, 0x55345e, 0x82507a, .3, 0, 1.3], [480, 4, 30, 0x46304e, 0x6e4a66, .15, 0, 1]] },
     concert: { haze: 0x2a1840, L: [[760, 40, 150, 0x1a1030, 0x2c1a48, .4, 0, 1.4], [600, 20, 80, 0x140c26, 0x24163c, .25, 0, 1.2]] },
     night: { haze: 0x1a0f2e, L: [[760, 40, 150, 0x120a22, 0x22143a, .4, 0, 1.4]] },
-  }[world] || null;
+  }[world === 'menu' ? 'green' : world] || null;
   if (P) P.L.forEach(([r, h0, h1, lo, hi, hk, snow, sh], k) => farGroup.add(ridge(r, h0, h1, lo, hi, P.haze, hk, k * 11.3 + world.length, snow, sh)));
   if (world === 'concert' || world === 'night') { const mat = new THREE.MeshBasicMaterial({ color: world === 'concert' ? 0x1a1030 : 0x120a22, fog: false });
     for (let i = 0; i < 40; i++) { const a = i / 40 * Math.PI * 2, r = 560, h = rand(30, 120); const m = new THREE.Mesh(new THREE.BoxGeometry(rand(20, 50), h, 20), mat); m.position.set(Math.cos(a) * r, h / 2 - 2, Math.sin(a) * r); m.lookAt(0, h / 2, 0); if (i % 3 === 0 || world === 'night') farGroup.add(m); } }
@@ -1208,7 +1209,7 @@ function nextSong() {
 // ------------------------------------------------------------------ world look
 const look = { cur: null };
 const CLOUDS = { // lit colour, shade colour, coverage
-  green: [0xffffff, 0xaebfd6, .58], stone: [0xfff3e2, 0xc89a80, .6], beach: [0xffd9b8, 0x9a5a86, .62], concert: [0x6c4f9e, 0x1c1234, .45], night: [0x3a2c60, 0x0c0818, .4] };
+  green: [0xffffff, 0xaebfd6, .58], menu: [0xffffff, 0xb4c2d2, .5], stone: [0xfff3e2, 0xc89a80, .6], beach: [0xffd9b8, 0x9a5a86, .62], concert: [0x6c4f9e, 0x1c1234, .45], night: [0x3a2c60, 0x0c0818, .4] };
 function applyWorld(name, k = 1) {
   const W = WORLDS[name];
   const c = (a, b) => new THREE.Color(a).lerp(new THREE.Color(b), k);
@@ -1218,7 +1219,7 @@ function applyWorld(name, k = 1) {
   sun.color.copy(c(from.sun, W.sun)); sun.intensity = lerp(from.sunI, W.sunI, k);
   hemi.color.copy(c(from.hemiSky, W.hemiSky)); hemi.groundColor.copy(c(from.hemiGround, W.hemiGround)); hemi.intensity = lerp(from.hemiI, W.hemiI, k);
   seaMat.color.copy(c(from.sea, W.sea)); bloom.strength = lerp(from.bloom, W.bloom, k);
-  { const R = { green: [0xfff2dc, .35], stone: [0xffd8b0, .45], beach: [0xffa070, .7], concert: [0xff5fc8, 1.0], night: [0x6fd8ff, .9] }, r0 = R[Object.keys(WORLDS).find(n => WORLDS[n] === from)] || R[name], r1 = R[name] || R.green; rimU.color.value.copy(c(r0[0], r1[0])); rimU.strength.value = lerp(r0[1], r1[1], k); applyAuraOverride(); }
+  { const R = { menu: [0xffffff, .3], green: [0xfff2dc, .35], stone: [0xffd8b0, .45], beach: [0xffa070, .7], concert: [0xff5fc8, 1.0], night: [0x6fd8ff, .9] }, r0 = R[Object.keys(WORLDS).find(n => WORLDS[n] === from)] || R[name], r1 = R[name] || R.green; rimU.color.value.copy(c(r0[0], r1[0])); rimU.strength.value = lerp(r0[1], r1[1], k); applyAuraOverride(); }
   const cl = { green: 1, stone: .9, beach: .75, concert: .25, night: 0 }; const ca = lerp(cl[look.cur === WORLDS.green ? 'green' : Object.keys(WORLDS).find(n => WORLDS[n] === from) || name] ?? 1, cl[name] ?? 1, k);
   const tint = c(name === 'beach' ? 0xffd2c0 : 0xffffff, name === 'concert' ? 0x8a6ab8 : name === 'beach' ? 0xffc2b0 : 0xffffff);
   clouds.visible = false; // replaced by shader clouds in the dome
@@ -1405,12 +1406,23 @@ function toMenu() {
   state = 'menu'; showUI('menu'); clearTrack(); clearFriends(); if (player) { scene.remove(player.holder); player = null; }
   songs.forEach(a => { a.pause(); a.volume = .8; });
   genWorld = 'beach'; setWorld('beach', true);
-  menuStage.clear(); menuStage.visible = true;
-  const sm = M2.sand.clone(); sm.map = T.sand.clone(); sm.map.needsUpdate = true; sm.map.repeat.set(10, 10); const sand = new THREE.Mesh(new THREE.CircleGeometry(30, 48), sm); sand.rotation.x = -Math.PI / 2; sand.receiveShadow = true; menuStage.add(sand);
-  for (const x of [-3.2, 3.2]) { const a = envClone('speaker', 1.5) || new THREE.Mesh(new THREE.BoxGeometry(1, 1.3, .7), [M.ampSide, M.ampSide, M.ampSide, M.ampSide, M.amp, M.ampSide]); a.position.set(x, a.isMesh ? .65 : 0, -2.6); a.rotation.y = -x * .12; a.traverse?.(o => { if (o.isMesh) o.castShadow = true; }); menuStage.add(a); }
-  for (const [x, z, h] of [[-6.5, -7, 6.5], [6.8, -8, 7.2], [-10, -12, 7.8], [10.5, -13, 6.8]]) { const p = envClone('palm', h); if (p) { p.position.set(x, 0, z); p.rotation.y = rand(0, 6); menuStage.add(p); } }
-  for (let i = 0; i < 14; i++) { const b = new THREE.Mesh(G.sphere, M.bulb); b.scale.setScalar(.07); const u = i / 13; b.position.set(-4.5 + u * 9, 3.1 - Math.sin(u * Math.PI) * .6, -3.4); menuStage.add(b); }
-  const ring = new THREE.Mesh(new THREE.RingGeometry(.55, .75, 40), new THREE.MeshBasicMaterial({ color: 0xffcf4a, transparent: true, opacity: .8 })); ring.rotation.x = -Math.PI / 2; ring.position.y = .02; ring.name = 'ring'; menuStage.add(ring);
+  setWorld('menu', true); menuStage.clear(); menuStage.visible = true;
+  { const g = new THREE.CircleGeometry(60, 64), uv = g.attributes.uv; for (let k = 0; k < uv.count; k++) uv.setXY(k, uv.getX(k) * 18, uv.getY(k) * 18);
+    const ground = new THREE.Mesh(g, M2.grass); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; menuStage.add(ground);
+    const pg = new THREE.CircleGeometry(3.6, 40), pu = pg.attributes.uv; for (let k = 0; k < pu.count; k++) pu.setXY(k, pu.getX(k) * 2.2, pu.getY(k) * 2.2);
+    const pad = new THREE.Mesh(pg, M2.dirt); pad.rotation.x = -Math.PI / 2; pad.position.y = .01; pad.receiveShadow = true; menuStage.add(pad); }
+  { const n = MOBILE ? 1600 : 3200, im = new THREE.InstancedMesh(grassGeo, grassMat, n), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), col = new THREE.Color();
+    for (let k = 0; k < n; k++) { let a, r, x, z; do { a = rand(0, Math.PI * 2); r = 3.4 + Math.pow(Math.random(), 1.6) * 30; x = Math.cos(a) * r; z = Math.sin(a) * r - 2; } while (z > -1 && Math.abs(x) < 9); // keep the view to the band clear
+      q.setFromAxisAngle(up, rand(0, 6.28)); const sc = rand(.7, 1.15) * (z > -6 ? .75 : 1);
+      m4.compose(new THREE.Vector3(x, 0, z), q, new THREE.Vector3(sc, sc * rand(.85, 1.2), sc)); im.setMatrixAt(k, m4); im.setColorAt(k, col.setHSL(rand(.22, .29), rand(.3, .5), rand(.42, .58))); }
+    im.computeBoundingSphere(); im.receiveShadow = true; menuStage.add(im); }
+  const place = (k, h, x, z, axis) => { const o = envClone(k, h, axis); if (!o) return null; o.position.set(x, 0, z); o.rotation.y = rand(0, 6); o.traverse(q => { if (q.isMesh) q.castShadow = true; }); menuStage.add(o); return o; };
+  for (const [x, z, h] of [[-7, -9, 7.5], [7.5, -10, 8], [-12, -15, 9], [12.5, -16, 8.5], [-4, -19, 9.5], [5, -22, 10], [-17, -9, 7], [17, -8, 7.5], [0, -27, 11]]) place(pickEnv('treeA', 'treeB', 'treeC', 'treeD', 'canopy') || 'tree1', h, x + rand(-1, 1), z + rand(-1, 1));
+  for (const [x, z] of [[-21, -20], [21, -21], [-9, -30], [10, -31], [-26, -14], [26, -13]]) place(pickEnv('pineA', 'pineB', 'pineC') || 'pines', rand(11, 14), x, z);
+  for (const [x, z] of [[-5.2, -4.8], [5.4, -5.2], [-6.5, -2], [6.6, -2.4], [-3.8, -6.5], [3.6, -6.8]]) place(pickEnv('flowerbush', 'bush2', 'rosebush') || 'hedge', rand(.8, 1.2), x, z);
+  for (const [x, z] of [[-8.5, -5], [9, -6.5]]) place(pickEnv('stone', 'rock1') || 'rock1', rand(.7, 1.1), x, z);
+  for (const x of [-3.3, 3.3]) { const k = pickEnv('amp', 'amp2'); const a = k ? envClone(k, 1.25) : envClone('speaker', 1.5); if (a) { a.position.set(x, 0, -2.6); a.rotation.y = Math.PI - x * .12; a.traverse(o => { if (o.isMesh) o.castShadow = true; }); menuStage.add(a); } }
+  const ring = new THREE.Mesh(new THREE.RingGeometry(.55, .72, 48), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .75 })); ring.rotation.x = -Math.PI / 2; ring.position.y = .02; ring.name = 'ring'; menuStage.add(ring);
   menuGirls = [...Array(NGIRLS).keys()].map(i => { const g = makeGirl(i); menuStage.add(g.holder); playAct(g, 'idle', 0, 1); if (g.actions.idle) g.actions.idle.time = i * .7; g.holder.rotation.y = Math.PI; return g; });
   selGirl(sel, true);
   $('bestTxt').textContent = best ? `🏆 REKOR ${best}` : '🏆 REKOR —'; if ($('bankTxt')) $('bankTxt').textContent = `🎸 KASA ${bank}`;
