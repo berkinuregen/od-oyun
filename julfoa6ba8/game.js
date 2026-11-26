@@ -350,6 +350,37 @@ let curWorld = 'green';
 let segCount = 0;
 const root = new THREE.Group(); scene.add(root);
 
+const CORNER_R = 7;
+// where the runner is drawn: on straights = segPoint; within CORNER_R of a corner = on a quarter circle (lanes merge to the middle)
+function runnerPose(out) {
+  let A = null, B = null, u = 0, L = lat;
+  if (s > seg.len - CORNER_R && segs[segI + 1]) { A = seg; B = segs[segI + 1]; u = s - seg.len; }
+  else if (s < CORNER_R && segI > 0) { A = segs[segI - 1]; B = seg; u = s; }
+  if (!A || A.turn === undefined) { segPoint(seg, s, lat, out); return yawOf(seg.dir); }
+  const R = CORNER_R, t = Math.min(1, Math.max(0, (u + R) / (2 * R))), th = t * Math.PI / 2, c = Math.cos(th), sn = Math.sin(th);
+  const dA = DIRS[A.dir], dB = DIRS[B.dir], rA = DIRS[(A.dir + 1) % 4], rB = DIRS[(B.dir + 1) % 4];
+  const cx = A.sx + dA[0] * A.len, cz = A.sz + dA[1] * A.len, sg = (B.dir === (A.dir + 1) % 4) ? 1 : -1; // +1 right turn
+  const ox = cx - dA[0] * R + sg * rA[0] * R, oz = cz - dA[1] * R + sg * rA[1] * R;
+  const px = ox + R * (-sg * rA[0] * c + dA[0] * sn), pz = oz + R * (-sg * rA[1] * c + dA[1] * sn);
+  const k = u < 0 ? Math.max(0, 1 - t * 2) : 0; L = (u < 0 ? lat : lat) * (u < 0 ? k : 1); // lanes fade into the bend
+  const rx = rA[0] * c + rB[0] * sn, rz = rA[1] * c + rB[1] * sn;
+  out.set(px + rx * L, 0, pz + rz * L);
+  const fx = dA[0] * c + dB[0] * sn, fz = dA[1] * c + dB[1] * sn; return Math.atan2(-fx, -fz);
+}
+// a quarter-ring of road on the inside of each corner so the track itself looks rounded
+function cornerFillet(seg) {
+  const nextDir = (seg.dir + (seg.turn === 'R' ? 1 : 3)) % 4, sg = seg.turn === 'R' ? 1 : -1, R = CORNER_R, H = ROAD_W / 2;
+  const mat = { green: M2.dirt, stone: M2.cobble, beach: M2.sandRoad, concert: M2.stage, night: M2.asphalt }[seg.world]; if (!mat) return;
+  // local frame of seg.group: forward = -Z, right = +X ; ring centre O = corner - fwd*R + right*sg*R
+  const g = new THREE.RingGeometry(Math.max(.01, R - H - .2), R + H + .2, 28, 2, 0, Math.PI / 2);
+  const pos = g.attributes.position, uv = g.attributes.uv, tile = { green: ROAD_W, stone: 3, beach: ROAD_W, concert: 4, night: ROAD_W }[seg.world];
+  for (let i = 0; i < pos.count; i++) uv.setXY(i, pos.getX(i) / tile, pos.getY(i) / tile);
+  const m = new THREE.Mesh(g, mat); m.receiveShadow = true; m.rotation.x = -Math.PI / 2;
+  // ring's local quadrant spans +x..+y (before laying flat: +y becomes -z, i.e. forward). Turn it so the quadrant faces the corner.
+  const holder = new THREE.Group(); holder.add(m); holder.rotation.y = sg > 0 ? Math.PI / 2 : 0; holder.position.set(sg * R, .006, -(seg.len - R));
+  if (sg < 0) { holder.rotation.y = 0; holder.scale.x = 1; m.rotation.z = 0; }
+  seg.group.add(holder); seg.fillet = holder;
+}
 function segPoint(seg, s, lat, out = new THREE.Vector3()) {
   const d = DIRS[seg.dir], r = DIRS[(seg.dir + 1) % 4];
   return out.set(seg.sx + d[0] * s + r[0] * lat, 0, seg.sz + d[1] * s + r[1] * lat);
@@ -409,7 +440,7 @@ function buildSegment(seg, first) {
     buildPart(seg, seg.world, seg.mid, sEnd, false, true);
     gate(seg, seg.from, seg.world, seg.mid);
   } else buildPart(seg, seg.world, s0, sEnd, true, true);
-  cornerWall(seg);
+  cornerWall(seg); cornerFillet(seg);
   const arrow = new THREE.Mesh(new THREE.PlaneGeometry(3, 3), new THREE.MeshBasicMaterial({ map: arrowTex(seg.turn), transparent: true, depthWrite: false }));
   arrow.rotation.x = -Math.PI / 2; put(seg, arrow, seg.len - 9, 0, .02);
   spawnContent(seg, first ? 30 : 36); // leave a clear run-out after every corner
@@ -1436,10 +1467,10 @@ function update(dt, t) {
     if (downT > 7.6 && state === 'down') { state = 'over'; showUI('over'); }
   }
   // place player
-  segPoint(seg, s, lat, tmp); player.holder.position.set(tmp.x, py, tmp.z);
+  const poseYaw = state === 'run' ? runnerPose(tmp) : (segPoint(seg, s, lat, tmp), yawOf(seg.dir)); player.holder.position.set(tmp.x, py, tmp.z);
   if (!flyBoard.parent) scene.add(flyBoard);
   flyBoard.visible = state === 'run' && flyT > 0; if (flyBoard.visible) { flyBoard.position.copy(player.holder.position); flyBoard.position.y = py - .05; flyBoard.rotation.y = player.holder.rotation.y + (params.has('boff') ? +params.get('boff') : Math.PI / 2) + Math.sin(t * 1.5) * .12; const tilt = Math.sin(t * 5) * .06; flyBoard.rotation.x = tilt; if (Math.random() < .6) emit(flyBoard.position, pick([0xf7c41f, 0xffffff, 0xffe27a]), rand(-1, 1), rand(-2, -.5), rand(-1, 1), rand(.3, .6)); }
-  const targetYaw = yawOf(seg.dir);
+  const targetYaw = state === 'run' ? poseYaw : yawOf(seg.dir);
   if (state === 'run' || downT < 5.6) player.holder.rotation.y = angLerp(player.holder.rotation.y, targetYaw, Math.min(1, dt * 14));
   // lean while changing lanes
   player.inner.rotation.z = state === 'run' ? clamp((lat - lane * LANE) * .12, -.25, .25) : 0;
