@@ -465,6 +465,7 @@ function buildSegment(seg, first) {
     buildPart(seg, seg.world, seg.mid, sEnd, false, true);
     gate(seg, seg.from, seg.world, seg.mid);
   } else buildPart(seg, seg.world, s0, sEnd, true, true);
+  if (seg._trees) { for (const k in seg._trees) scatter(seg, k, seg._trees[k], true); seg._trees = null; }
   cornerWall(seg); cornerFillet(seg);
   const arrow = new THREE.Mesh(new THREE.PlaneGeometry(3, 3), new THREE.MeshBasicMaterial({ map: arrowTex(seg.turn), transparent: true, depthWrite: false }));
   arrow.rotation.x = -Math.PI / 2; put(seg, arrow, seg.len - 9, 0, .02);
@@ -706,7 +707,11 @@ function cornerWall(seg) {
   const H = ROAD_W / 2, w = seg.world, sW = seg.len + H + .9, outer = seg.turn === 'R' ? -1 : 1;
   const wall = (s, lat, sx, sz, rotY = 0) => {
     let m;
-    if (w === 'green' && ENV.hedge) { m = new THREE.Group(); const n = Math.ceil(Math.max(sx, sz) / 1.8); for (let i = 0; i < n; i++) { const h = envClone('hedge', 1.9); const along = -Math.max(sx, sz) / 2 + .9 + i * 1.8; h.scale.x *= 1.0; if (sx > sz) h.position.set(along, 0, 0); else h.position.set(0, 0, along); m.add(h); } }
+    if (w === 'green' && ENV.wallLow) { // low dry-stone wall with flowering bushes in front instead of cube hedges
+      m = new THREE.Group(); const L = Math.max(sx, sz), along = sx > sz, seg2 = 2.4, n = Math.ceil(L / seg2);
+      for (let i = 0; i < n; i++) { const q = -L / 2 + seg2 / 2 + i * seg2, wl = envClone('wallLow', seg2 + .05, 'x'); wl.scale.y *= 1.5; if (along) wl.position.set(q, 0, -.25); else { wl.rotation.y = Math.PI / 2; wl.position.set(-.25 * Math.sign(lat || 1), 0, q); } m.add(wl);
+        for (let j = 0; j < 2; j++) { const bk = pickEnv('flowerbush', 'bush2', 'flowerbush', 'rosebush'); if (!bk) break; const b = envClone(bk, rand(.8, 1.2)); b.rotation.y = rand(0, 6); const o = q + (j - .5) * 1.1 + rand(-.2, .2); if (along) b.position.set(o, 0, .55); else b.position.set(.55 * -Math.sign(lat || 1), 0, o); m.add(b); } } }
+    else if (w === 'green' && ENV.hedge) { m = new THREE.Group(); const n = Math.ceil(Math.max(sx, sz) / 1.8); for (let i = 0; i < n; i++) { const h = envClone('hedge', 1.9); const along = -Math.max(sx, sz) / 2 + .9 + i * 1.8; h.scale.x *= 1.0; if (sx > sz) h.position.set(along, 0, 0); else h.position.set(0, 0, along); m.add(h); } }
     else if (w === 'green') { m = new THREE.Mesh(G.box, M2.hedge); m.scale.set(sx, 1.9, sz); m.position.y = .95; }
     else if (w === 'stone' && ENV.house1) { m = new THREE.Group(); const L = Math.max(sx, sz), along = sx > sz, sg = Math.sign(lat) || 1;
       for (let q = -L / 2 - 1; q < L / 2 + 1;) { const k = pickEnv('house1', 'house2', 'house3', 'house4'), z = ENV[k].userData.size, h = rand(8.5, 11), wd = z.x * h / z.y, dp = z.z * h / z.y, o = envClone(k, h);
@@ -739,7 +744,7 @@ function fixNormals(root) { let n = 0; root.traverse(o => { const g = o.geometry
   let bad = !nr; if (nr) for (let i = 0; i < nr.count && !bad; i++) { const x = nr.getX(i), y = nr.getY(i), z = nr.getZ(i), l = x * x + y * y + z * z; if (!(l > 1e-8) || !isFinite(l)) bad = true; }
   if (!bad) return; n++; g.computeVertexNormals(); const a = g.attributes.normal; for (let i = 0; i < a.count; i++) { const x = a.getX(i), y = a.getY(i), z = a.getZ(i), l = x * x + y * y + z * z; if (!(l > 1e-8) || !isFinite(l)) a.setXYZ(i, 0, 1, 0); } a.needsUpdate = true; });
   return n; }
-const ENV_EXTRA = ['house1', 'house2', 'house3', 'house4', 'umb1', 'umb2', 'umb3', 'lounger1', 'lounger2', 'lifeguard', 'beachhut', 'beachball', 'lifebuoy', 'crate1', 'crate2', 'crate3', 'planter', 'sandcastle', 'barricade', 'sawhorse', 'crowdbar', 'jersey', 'mic', 'drumstick', 'guitarpick', 'amp', 'amp2', 'parcan', 'ledpanel', 'bench', 'volleyball', 'sail1', 'sail2', 'rowboat', 'grass', 'grass2', 'drygrass', 'drygrass2', 'bush2', 'rosebush', 'flowerbush', 'stone', 'desertrocks', 'tent', 'ferris', 'pier', 'tree6', 'foodtruck'];
+const ENV_EXTRA = ['house1', 'house2', 'house3', 'house4', 'umb1', 'umb2', 'umb3', 'lounger1', 'lounger2', 'lifeguard', 'beachhut', 'beachball', 'lifebuoy', 'crate1', 'crate2', 'crate3', 'planter', 'sandcastle', 'barricade', 'sawhorse', 'crowdbar', 'jersey', 'mic', 'drumstick', 'guitarpick', 'amp', 'amp2', 'parcan', 'ledpanel', 'bench', 'volleyball', 'sail1', 'sail2', 'rowboat', 'grass', 'grass2', 'drygrass', 'drygrass2', 'bush2', 'rosebush', 'flowerbush', 'stone', 'desertrocks', 'tent', 'ferris', 'pier', 'tree6', 'foodtruck', 'treeA', 'treeB', 'treeC', 'treeD', 'pineA', 'pineB', 'pineC', 'maple', 'canopy', 'wallLow'];
 // bake all meshes of a model into one geometry (world transforms applied); with colours=true, material colours go to vertex colours
 function bakeGeo(root, colours) {
   root.updateMatrixWorld(true); const parts = [];
@@ -827,8 +832,8 @@ function fillLand(seg, w, a, b) {
     sprinkle(seg, a, b, side, H + 1.2, H + 30, 1.1, ['grass', 'grass2'], .45, .85);
     sprinkle(seg, a, b, side, H + 2.5, H + 26, .22, ['bush2', 'rosebush', 'flowerbush'], .7, 1.3);
     sprinkle(seg, a, b, side, H + 3, H + 40, .08, ['stone'], .35, .9);
-    sprinkle(seg, a, b, side, H + 12, H + 55, .35, ['tree1', 'tree2', 'tree3', 'tree4', 'tree6'], 4, 7.5);
-    sprinkle(seg, a, b, side, H + 46, H + 72, .16, ['pines'], 4, 5.5);
+    sprinkle(seg, a, b, side, H + 12, H + 55, .35, ENV.treeA ? ['treeA', 'treeB', 'treeC', 'treeD', 'canopy', 'treeA', 'treeB'] : ['tree1', 'tree2', 'tree3', 'tree4', 'tree6'], 5, 8.5);
+    sprinkle(seg, a, b, side, H + 46, H + 72, .16, ENV.pineA ? ['pineA', 'pineB', 'pineC'] : ['pines'], ENV.pineA ? 9 : 4, ENV.pineA ? 13 : 5.5);
     if (Math.random() < .35) { const s0 = rand(a + 15, b - 15), l = rand(H + 16, H + 30); scatter(seg, 'tent', Array.from({ length: 3 + Math.floor(rand(0, 3)) }, () => [s0 + rand(-7, 7), side * (l + rand(-4, 4)), rand(1.2, 1.5)])); }
   } else if (w === 'stone') for (const side of [-1, 1]) {
     for (const [l, h0, h1] of [[H + 14, 10, 13], [H + 26, 13, 17]]) { // rooftops behind the street
@@ -855,6 +860,10 @@ function fillLand(seg, w, a, b) {
 }
 // ---------------- green
 function tree(seg, s, lat) {
+  if (ENV.treeA) { // detailed textured trees, batched per segment (one draw call per model)
+    const far = Math.abs(lat) > ROAD_W / 2 + 14, pine = far && Math.random() < .5;
+    const k = pine ? pickEnv('pineA', 'pineB', 'pineC') : Math.random() < .08 ? 'maple' : pickEnv('treeA', 'treeB', 'treeC', 'treeD', 'canopy');
+    ((seg._trees ||= {})[k] ||= []).push([s, lat, pine ? rand(8, 12) : rand(5, 8)]); return; }
   const far = Math.abs(lat) > ROAD_W / 2 + 14;
   const em = far && Math.random() < .5 ? envClone('pines', rand(7, 10), 'x') : envClone(pick(['tree1', 'tree2', 'tree3', 'tree4']), rand(4.2, 6.5));
   if (em) { em.rotation.y = rand(0, 6); put(seg, em, s, lat, 0); return; }
