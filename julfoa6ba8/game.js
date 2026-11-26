@@ -1165,7 +1165,7 @@ $('shareBtn').onclick = async () => { // share score + link (Web Share on phones
 };
 $('prevBtn').onclick = () => selGirl(sel - 1);
 $('nextBtn').onclick = () => selGirl(sel + 1);
-$('bandBtn').onclick = () => $('band').classList.remove('hide');
+$('bandBtn').onclick = () => $('band').classList.remove('hide'); if (params.has('band')) setTimeout(() => $('band').classList.remove('hide'), 500);
 $('howBtn').onclick = () => $('how').classList.remove('hide');
 $('muteBtn').onclick = () => setMuted(!muted);
 document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => b.closest('.panel').classList.add('hide'));
