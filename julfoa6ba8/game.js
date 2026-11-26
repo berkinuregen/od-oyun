@@ -1542,12 +1542,15 @@ function endGig() {
 // a needle sweeps a bar; tap to take the shot — the closer to the centre, the more points. The photographer (our DoP) takes the pictures.
 const PHOTO_N = 5;
 let photo = null, PHOTOG = null, captureNext = null;
+// fans for the photo session: Quaternius "Ultimate Animated Character" pack (CC0, poly.pizza), trimmed to Idle/Walk/Wave
+const FANS = [];
+function loadFans() { for (let i = 1; i <= 6; i++) loader.load(`models/fans/fan${i}.glb`, g => { g.scene.traverse(o => { if (o.isMesh && o.material) { o.material.metalness = 0; o.material.roughness = Math.max(.7, o.material.roughness ?? 1); } }); FANS.push(g); }); }
 function loadPhotographer() { return new Promise(res => loader.load('models/fotografci.glb', g => { PHOTOG = prepGirl(g); res(); }, undefined, () => res())); }
 function makePerson(gltf) { // animated Quaternius fan (CC0)
   const m = SkeletonUtils.clone(gltf.scene); const b = new THREE.Box3().setFromObject(gltf.scene); const k = 1.72 / (b.max.y - b.min.y);
   const holder = new THREE.Group(); m.scale.setScalar(k); m.position.y = -b.min.y * k; holder.add(m); m.traverse(o => { if (o.isMesh) o.castShadow = true; });
   const mixer = new THREE.AnimationMixer(m), clip = n => gltf.animations.find(c => c.name.toLowerCase().includes(n));
-  const act = {}; for (const n of ['walk', 'idle', 'clapping', 'standing']) { const c = clip(n); if (c) act[n] = mixer.clipAction(c); }
+  const act = {}; for (const n of ['walk', 'idle', 'clapping', 'standing', 'wave']) { const c = clip(n); if (c) act[n] = mixer.clipAction(c); }
   // ground the skinned model by its lowest foot bone after posing (the bind-pose bbox sits them in the floor)
   mixer.update(0); holder.updateMatrixWorld(true); let minY = Infinity; const v = new THREE.Vector3(); m.traverse(o => { if (o.isBone && /foot|toe/i.test(o.name)) { o.getWorldPosition(v); minY = Math.min(minY, v.y); } }); if (isFinite(minY)) m.position.y += .06 - minY;
   return { holder, mixer, act, cur: null, play(n, f = .2) { const a = this.act[n] || this.act.idle; if (!a || a === this.cur) return; a.reset().fadeIn(f).play(); this.cur?.fadeOut(f); this.cur = a; } };
@@ -1613,7 +1616,8 @@ function startPhoto() {
 function nextFan() {
   if (photo.fan) scene.remove(photo.fan.holder);
   if (photo.n >= PHOTO_N) return endPhoto();
-  const raw = CROWD.raw?.[photo.n % (CROWD.raw?.length || 1)];
+  const pool = FANS.length ? FANS : CROWD.raw || []; if (!photo.order) photo.order = [...pool.keys()].sort(() => Math.random() - .5);
+  const raw = pool[photo.order[photo.n % pool.length]];
   const fan = raw ? makePerson(raw) : { holder: new THREE.Mesh(new THREE.CapsuleGeometry(.25, 1, 4, 8), new THREE.MeshStandardMaterial({ color: 0x5577aa })), mixer: null, play() { } };
   if (!raw) fan.holder.position.y = .75;
   const side = photo.n % 2 ? 1 : -1; fan.from = segPoint(seg, photo.s0 - 2.4, side * 5.2); fan.to = segPoint(seg, photo.s0 - 2.25, .45);
@@ -1648,7 +1652,7 @@ function shoot() {
   const d = Math.abs(P.needle - .5); const [pts, label] = d < .05 ? [100, 'MÜKEMMEL!'] : d < .14 ? [60, 'SÜPER'] : d < .28 ? [30, 'İYİ'] : [10, 'BULANIK'];
   P.total += pts; score += pts; P.phase = 'after'; P.t = 0;
   flash('#ffffff', .9); sfx(2200, .05, 'square', .06); setTimeout(() => sfx(1400, .06, 'square', .05), 70); noise(.08, .12, 5000);
-  P.fan.play('clapping'); $('photoRes').textContent = `${label} +${pts}`; $('photoBar').classList.add('dim'); buzz(40);
+  P.fan.play(P.fan.act?.clapping ? 'clapping' : 'wave'); $('photoRes').textContent = `${label} +${pts}`; $('photoBar').classList.add('dim'); buzz(40);
   captureNext = { n: P.n + 1, pts, label };
 }
 function showPolaroid(url, info) {
@@ -1719,13 +1723,14 @@ function frame() {
   setWorld('beach', true);
   requestAnimationFrame(frame);
   await withTimeout(document.fonts.ready, 3000);
-  const propsP = loadProps(); loadCrowdModels(); loadPhotographer(); loadLyrics(); const envP = loadEnv();
+  const propsP = loadProps(); loadCrowdModels(); loadPhotographer(); loadLyrics(); setTimeout(loadFans, 800); const envP = loadEnv();
   await loadGirls(p => { $('lbar').style.width = (p * 100) + '%'; $('ltxt').textContent = `karakterler yükleniyor… ${Math.round(p * 100)}%`; });
   if (LOOK === 2 && !LOOK_TPL[2].some(Boolean)) { LOOK = 1; girlTemplates = LOOK_TPL[1]; localStorage.setItem('od3_look', '1'); buildFaces(); updateLookBtn(); await loadGirls(p => { $('lbar').style.width = (p * 100) + '%'; }); }
   await withTimeout(Promise.all([envP, propsP]), 8000);
   $('loading').classList.add('hide');
   if (params.has('sel')) sel = +params.get('sel');
   toMenu();
+  if (params.has('wait')) await new Promise(r => setTimeout(r, +params.get('wait') || 6000)); // debug: let lazy assets arrive
   if (params.has('run')) { if (params.get('run')) sel = +params.get('run'); startRun(); if (params.has('sim')) { const n = +params.get('sim'); for (let i = 0; i < n && state === 'run'; i++) { if (params.has('auto')) autopilot(); if (i === n - 12 && params.has('jump')) act('up'); if (i === n - 20 && params.has('slide')) act('down'); update(1 / 60, i / 60); } if (params.has('gig')) { startGig(); for (let i = 0; i < +params.get('gig'); i++) update(1 / 60, i / 60); if (params.has('pshoot') && photo) { photo.needle = .5; shoot(); } } if (params.has('down')) { gameOver('Test'); for (let i = 0; i < +params.get('down'); i++) update(1 / 60, i / 60); } const d = document.createElement('div'); d.style.cssText = 'position:fixed;top:120px;left:10px;font:14px monospace;background:#000a;padding:6px;z-index:99'; d.textContent = `state=${state} segI=${segI} s=${s.toFixed(1)} len=${seg.len} turn=${seg.turn} turnQ=${turnQ} lane=${lane} lat=${lat.toFixed(2)} dist=${dist.toFixed(0)} reason=${$('overLine').textContent}`; document.body.appendChild(d); } }
 })();
 
