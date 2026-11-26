@@ -720,7 +720,7 @@ function spawnContent(seg, startS) {
       else if (Math.random() < .5) { const lo = seg.objs.find(o => o.s === s && o.t === 'low'); if (lo) coinArc(seg, s, lo.lane); }
     }
     if (Math.random() < .07) powerup(seg, s + 6, lanes[2] ?? 0, Math.random() < .55 ? 'sun' : 'mic');
-    if (Math.random() < .07 && !letterOnTrack()) letter(seg, s + 8, lanes[1] ?? 0);
+    if (Math.random() < .2 && letterOnTrack() < 2) letter(seg, s + 8, lanes[1] ?? 0);
     s += lerp(21, 14, diff) + rand(0, 6);
   }
 }
@@ -799,7 +799,7 @@ function powerup(seg, s, lane, kind) {
   put(seg, g, s, lane * LANE, 1.3); seg.objs.push({ t: kind, lane, s, y: 1.3, mesh: g });
 }
 let letterGot = new Set(), lastLetter = -1;
-function letterOnTrack() { for (const sg of segs) for (const o of sg.objs) if (o.t === 'letter' && !o.done) return true; return false; }
+function letterOnTrack() { let n = 0; for (const sg of segs) for (const o of sg.objs) if (o.t === 'letter' && !o.done) n++; return n; }
 function letter(seg, s, lane) {
   const word = [...SONGS[songIdx].word];
   let left = word.map((_, i) => i).filter(i => !letterGot.has(i)); if (!left.length) return;
@@ -1279,11 +1279,11 @@ function collide(dt) {
     if (o.done || o.t === 'deco') continue;
     const ds = o.s - s;
     if (o.t === 'coin' || o.t === 'letter' || o.t === 'sun' || o.t === 'mic') {
-      if (magnet > 0 && o.t === 'coin' && ds < 16 && ds > -1) { // pull toward player
+      if ((magnet > 0 && o.t === 'coin' || o.t === 'letter') && ds < (o.t === 'letter' ? 9 : 16) && ds > -1) { // pull toward player
         o.mesh.position.x = lerp(o.mesh.position.x, lat, Math.min(1, dt * 9)); o.mesh.position.y = lerp(o.mesh.position.y, py + 1, Math.min(1, dt * 9)); o.s = lerp(o.s, s, Math.min(1, dt * 6)); o.mesh.position.z = -o.s; o.lane = o.mesh.position.x / LANE;
       }
       const ox = o.mesh.position.x, oy = o.mesh.position.y;
-      if (Math.abs(o.s - s) < 1 && Math.abs(ox - lat) < 1.1 && Math.abs(oy - (py + .9)) < 1.5) collect(o);
+      if (Math.abs(o.s - s) < (o.t === 'letter' ? 1.4 : 1) && Math.abs(ox - lat) < (o.t === 'letter' ? 1.6 : 1.1) && Math.abs(oy - (py + .9)) < 1.7) collect(o);
       continue;
     }
     if (Math.abs(ds) > .55) continue;
@@ -1377,6 +1377,10 @@ function gigStage() {
   const g = new THREE.Group(), W = ROAD_W + 5, D = 5;
   const deck = new THREE.Mesh(G.box, GM.wood); deck.scale.set(W, .9, D); deck.position.set(0, .45, -D / 2); deck.receiveShadow = true; g.add(deck);
   const riser = new THREE.Mesh(G.box, GM.wood); riser.scale.set(2.2, .45, 1.8); riser.position.set(1.9, 1.12, -3.4); g.add(riser);
+  const led = new THREE.Mesh(G.box, M2.ledA); led.scale.set(W, .06, .06); led.position.set(0, .92, .02); g.add(led);
+  const led2 = new THREE.Mesh(G.box, M2.ledB); led2.scale.set(2.2, .05, .05); led2.position.set(1.9, 1.36, -2.48); g.add(led2);
+  for (const [x, z] of [[-4.3, -3.9], [-3.2, -4.2], [5.3, -3.9]]) { const sp = envClone('speaker', 1.5); if (sp) { sp.position.set(x, .9, z); g.add(sp); } } // backline amps
+  for (const x of [-W / 2 + .5, W / 2 - .5]) { const t = new THREE.Mesh(G.box, M.metal); t.scale.set(.35, .25, .35); t.position.set(x, 1.0, -.1); g.add(t); } // sparkler bases
   const frame = new THREE.Mesh(G.box, M.caseSide); frame.scale.set(9.4, 5.5, .2); frame.position.set(0, 3.75, -D - .25); g.add(frame);
   const screen = new THREE.Mesh(new THREE.PlaneGeometry(9.0, 5.06), new THREE.MeshBasicMaterial({ map: gigVideo.readyState >= 2 ? gigVideoTex : T.screen, toneMapped: false })); screen.position.set(0, 3.75, -D - .1); g.add(screen); g.userData.screen = screen;
   for (const x of [-W / 2 - .2, W / 2 + .2]) { const sp = new THREE.Mesh(new THREE.BoxGeometry(1.2, 3.4, 1), [M.ampSide, M.ampSide, M.ampSide, M.ampSide, M.amp, M.ampSide]); sp.position.set(x, 1.7, -1.2); sp.castShadow = true; g.add(sp); }
@@ -1403,8 +1407,8 @@ function gigAudience(s0) {
 const GIG_SHOTS = [
   { t: 0, from: [-16, 0, 4.4], to: [-10, 0, 3.4], look: [1.5, 0, 2.2] },      // wide, dolly in over the crowd
   { t: 3, from: [-7, -.4, 2.6], to: [-4.6, -.2, 2.3], look: [1, 0, 2.1] },   // push in toward the stage
-  { t: 5.2, from: [-2.4, -.6, 2.2], to: [-1.9, -.3, 2.1], look: [.9, -.3, 2.4] }, // Güneş close-up
-  { t: 6.8, from: [.1, -.2, 3.1], to: [.6, .7, 2.9], look: [3.2, 1.9, 2.3] },  // drums
+  { t: 5.2, from: [-2.4, -2.0, 2.3], to: [-1.9, -1.4, 2.2], look: [.9, -.3, 2.35] }, // three-quarter so the mic doesn't cover her face // Güneş close-up
+  { t: 6.8, from: [-2.2, 4.4, 2.7], to: [-1.4, 3.4, 2.5], look: [2.6, 1.9, 1.9] },  // drums, from the front-right
   { t: 8.3, from: [-1.8, -6.8, 1.8], to: [-1.8, -3.2, 1.9], look: [1.3, -3.4, 2.1] }, // guitar side track
   { t: 9.8, from: [-5, 0, 2.3], to: [-13, 0, 5.8], look: [1.5, 0, 2.6] },     // crane out
 ];
@@ -1441,10 +1445,12 @@ function startGig() {
     gig.band.push(girl);
   }
   // instruments
-  const kit = drumKit(); const kp = segPoint(seg, s0 + 3.2 - .55, 1.9); kit.position.copy(kp).setY(1.35); kit.rotation.y = yawOf(seg.dir) + (PROPS.drums ? 0 : Math.PI); scene.add(kit); gig.props.push(kit);
+  const kit = drumKit(); const kp = segPoint(seg, s0 + 3.2 - .55, 1.9); kit.position.copy(kp).setY(1.35); kit.rotation.y = yawOf(seg.dir) + (PROPS.drums ? Math.PI : 0); scene.add(kit); gig.props.push(kit);
   const mic = micStand(); const mp = segPoint(seg, s0 + .45, -.3); mic.position.copy(mp).setY(.9); scene.add(mic); gig.props.push(mic);
 }
-let gigPending = false;
+let gigPending = false; const _gv = new THREE.Vector3();
+// two coloured wash lights live in the scene from the start (intensity 0) so the gig never triggers a shader recompile
+const stageLights = [new THREE.PointLight(0xff3d9a, 0, 14, 1.2), new THREE.PointLight(0x4de1ff, 0, 14, 1.2)]; stageLights.forEach(l => scene.add(l));
 function updateGig(dt, t) {
   gig.t += dt; const T0 = gig.t;
   const face = yawOf(seg.dir) + Math.PI; // band faces the audience (back toward where we came from)
@@ -1460,10 +1466,18 @@ function updateGig(dt, t) {
       if (g.bones.r) g.bones.r.rotation.x += k * .35; if (g.bones.l) g.bones.l.rotation.x += k2 * .35;
     }
     if (st.arrived && (st.role === 'guitar' || st.role === 'bass') && g.bones?.r) g.bones.r.rotation.z += Math.sin(t * 16) * .18; // strumming
+    if (g.guitar && g.spineBone) { g.holder.updateMatrixWorld(true); g.spineBone.getWorldPosition(_gv); g.holder.worldToLocal(_gv); g.guitar.position.set(_gv.x + .04, _gv.y - .24, _gv.z - .2); }
   }
   for (const b of gig.stage.userData.beams) { b.rotation.z = Math.sin(t * 1.3 + b.userData.ph) * .5; b.rotation.x = Math.PI + Math.sin(t * .9 + b.userData.ph) * .4; }
   const left = Math.ceil(GIG_LEN + 1.2 - T0); if (left >= 0 && left <= GIG_LEN) $('hint').textContent = `🎸 KONSER ${left}`, $('hint').style.opacity = 1;
   score += dt * 40;
+  if (T0 > 1.2 && T0 < GIG_LEN + .8) { const W = ROAD_W + 5;
+    for (const sx of [-W / 2 + .5, W / 2 - .5]) { const p = segPoint(seg, gig.s0 + .1, sx, tmp2); p.y = 1.15; for (let k = 0; k < 3; k++) emit(p, Math.random() < .5 ? 0xffd36b : 0xfff1c4, rand(-.5, .5), rand(6, 9), rand(-.5, .5), rand(.5, .9)); }
+    for (let k = 0; k < 3; k++) { const p = segPoint(seg, gig.s0 + rand(-6, 3), rand(-W / 2, W / 2), tmp2); p.y = rand(6, 8); emit(p, pick([0xff3d9a, 0x4de1ff, 0xffcf4a, 0xffffff, 0xe8433b]), rand(-.6, .6), rand(.5, 1.5), rand(-.6, .6), rand(1, 1.6)); }
+    const k = Math.min(1, (T0 - 1.2) * 2) * (T0 > GIG_LEN + .3 ? 0 : 1);
+    stageLights[0].position.copy(segPoint(seg, gig.s0 + 1.5, -3.5 + Math.sin(t * 1.3) * 2, tmp2)).setY(4.5); stageLights[0].intensity = 18 * k;
+    stageLights[1].position.copy(segPoint(seg, gig.s0 + 1.5, 3.5 + Math.sin(t * 1.1 + 2) * 2, tmp2)).setY(4.5); stageLights[1].intensity = 18 * k;
+  }
   if (T0 > GIG_LEN + 1.2) endGig();
 }
 function startPlaying(g) {
@@ -1472,14 +1486,14 @@ function startPlaying(g) {
   if (role === 'drums') { playAct(g, g.actions.sit ? 'sit' : 'idle', .3, 1); const sl = new THREE.Mesh(G.cyl, M.stick), sr = sl.clone(); sl.scale.set(.012, .42, .012); sr.scale.copy(sl.scale);
     const wl = wrap(sl), wr = wrap(sr); attachToBone(g, 'LeftHand', wl, [0, .08, 0], [1.2, 0, 0]); attachToBone(g, 'RightHand', wr, [0, .08, 0], [1.2, 0, 0]); gig.props.push(wl, wr); }
   else if (role === 'vocal') playAct(g, g.actions.singdance ? 'singdance' : 'cheer', .3, 1);
-  else { playAct(g, g.actions.groove ? 'groove' : 'idle', .3, rand(.9, 1.05)); const gt = guitarProp(gig.band.indexOf(g), role === 'bass'); attachToBone(g, 'Spine01', gt, [0, .02, .17], [0, 0, -1.0]); gig.props.push(gt); }
+  else { playAct(g, g.actions.groove ? 'groove' : 'idle', .3, rand(.9, 1.05)); const gt = guitarProp(gig.band.indexOf(g), role === 'bass'); g.holder.add(gt); gt.rotation.set(0, Math.PI, role === 'bass' ? -.95 : -.85); g.guitar = gt; g.holder.traverse(o => { if (o.isBone && o.name === 'Spine01') g.spineBone = o; }); gig.props.push(gt); } // held across the body: neck up to her left, front to the crowd
 }
 function wrap(m) { const g = new THREE.Group(); g.add(m); return g; }
 function endGig() {
   // the others wave goodbye and vanish, the chosen girl jumps off the stage and keeps running
   for (const g of gig.band) if (g !== player) scene.remove(g.holder);
   for (const p of gig.props) p.parent?.remove(p);
-  gigVideo.pause();
+  gigVideo.pause(); stageLights.forEach(l => l.intensity = 0);
   gig.stage.parent?.remove(gig.stage);
   flash('#ffffff', .5);
   s = gig.s0 + 1; lat = 0; lane = 0; py = 0; vy = 0;
@@ -1490,7 +1504,7 @@ function endGig() {
 }
 
 // ------------------------------------------------------------------ particles (sparkles + dust), one Points cloud
-const PMAX = 400, pPos = new Float32Array(PMAX * 3), pCol = new Float32Array(PMAX * 3), pVel = new Float32Array(PMAX * 3), pLife = new Float32Array(PMAX);
+const PMAX = 900, pPos = new Float32Array(PMAX * 3), pCol = new Float32Array(PMAX * 3), pVel = new Float32Array(PMAX * 3), pLife = new Float32Array(PMAX);
 const pGeo = new THREE.BufferGeometry(); pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3)); pGeo.setAttribute('color', new THREE.BufferAttribute(pCol, 3));
 const pCloud = new THREE.Points(pGeo, new THREE.PointsMaterial({ size: .22, map: T.glow, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })); pCloud.frustumCulled = false; scene.add(pCloud);
 let pNext = 0; const _pc = new THREE.Color();
@@ -1525,9 +1539,9 @@ function frame() {
   setWorld('beach', true);
   requestAnimationFrame(frame);
   await withTimeout(document.fonts.ready, 3000);
-  loadProps(); loadCrowdModels(); const envP = loadEnv();
+  const propsP = loadProps(); loadCrowdModels(); const envP = loadEnv();
   await loadGirls(p => { $('lbar').style.width = (p * 100) + '%'; $('ltxt').textContent = `karakterler yükleniyor… ${Math.round(p * 100)}%`; });
-  await withTimeout(envP, 8000);
+  await withTimeout(Promise.all([envP, propsP]), 8000);
   $('loading').classList.add('hide');
   if (params.has('sel')) sel = +params.get('sel');
   toMenu();
