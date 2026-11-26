@@ -64,6 +64,7 @@
   .faces button{width:58px;height:58px;padding:0;border-radius:50%;overflow:hidden;border:3px solid rgba(255,255,255,.35);background:#222;transition:transform .15s,border-color .15s}
   .faces button img{width:100%;height:100%;object-fit:cover;display:block}
   .faces button.sel{border-color:var(--gold);transform:scale(1.18)}
+  .ask{font-family:Anton,Impact;font-size:24px;letter-spacing:.02em;color:#ffe3a0;margin-top:6px;text-shadow:0 2px 12px rgba(0,0,0,.7)}
   .who{font-family:Anton,Impact;font-size:26px;text-align:center;text-shadow:0 2px 10px rgba(0,0,0,.6);line-height:1.05}
   .who small{display:block;font-family:Manrope;font-size:13px;font-weight:800;color:#ffe3a0}
   .hname{display:block;font-family:Anton,Impact;font-size:18px;font-weight:400;line-height:1;text-shadow:0 2px 6px rgba(0,0,0,.5)}
@@ -75,7 +76,7 @@
   @media (max-width:440px){
     .faces{gap:6px}.faces button{width:50px;height:50px}.faces button.sel{transform:scale(1.12)}
     .ghost{font-size:13px;padding:8px 12px}.row{gap:7px}.go{font-size:28px;padding:10px 38px}
-    .logo .tag{font-size:12px}.who{font-size:23px}
+    .logo .tag{font-size:12px}.ask{font-size:19px}.who{font-size:23px}
   }
   @media (min-aspect-ratio:5/4){
     .logo{position:absolute;left:3vw;top:4vh;text-align:left}
@@ -184,7 +185,7 @@
 </div>
 
 <div id="menu" class="layer hide">
-  <div class="logo"><img class="odlogo" src="assets/logo_red.png" alt="OD Band"><div class="sub">Burdayım</div><div class="tag">Gölge peşinde. Düşersen grubun burada.</div></div>
+  <div class="logo"><img class="odlogo" src="assets/logo_red.png" alt="OD Band"><div class="sub">Burdayım</div><div class="ask">Hangi OD Band kızısın?</div></div>
   <div class="arrows"><button id="prevBtn">‹</button><button id="nextBtn">›</button></div>
   <div class="pick">
     <div class="who" id="who"></div>
@@ -272,6 +273,6 @@
 
 <div id="loading"><div><img src="assets/logo_red.png" alt="OD Band" style="width:min(56vw,260px);display:block;margin:0 auto 6px"><div class="lbar"><i id="lbar"></i></div><small id="ltxt">yükleniyor…</small></div></div>
 
-<script type="module" src="game.js?v=20261128f"></script>
+<script type="module" src="game.js?v=20261128g"></script>
 </body>
 </html>
