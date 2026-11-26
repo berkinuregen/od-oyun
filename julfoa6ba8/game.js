@@ -1886,7 +1886,7 @@ function startGig() {
   for (const o of seg.objs) if (o.mesh && o.s > s - 2 && o.s < s0 + 30) { o.mesh.visible = false; o.done = true; }
   for (const ch of seg.group.children) if (ch.userData.overhead !== undefined && ch.userData.overhead > s0 - 22 && ch.userData.overhead < s0 + 8) ch.visible = false; // laundry lines would hang in front of the stage
   const stage = gigStage(); put(seg, stage, s0, 0, 0);
-  gig = { t: 0, s0, stage, band: [], props: [], savedSpeed: speed, startS: s, startLat: lat }; rhythmStart();
+  gig = { t: 0, s0, stage, band: [], props: [], savedSpeed: speed, startS: s, startLat: lat }; // rhythm finale removed (user request)
   gigVideo.play().then(() => { stage.userData.screen.material.map = gigVideoTex; stage.userData.screen.material.needsUpdate = true; }).catch(() => { });
   gig.props.push(gigAudience(s0));
   gig.pg = makePhotographer(); if (gig.pg) { gig.pg.holder.position.copy(segPoint(seg, s0 - 1.0, -4.3)); gig.pg.mixer?.update(0); faceTo(gig.pg, segPoint(seg, s0 + 1.5, -1.5)); }
