@@ -1,6 +1,6 @@
 // OD Band – Burdayım: cache the heavy, rarely-changing files (models, textures, libs) so repeat visits start fast.
 // Bump CACHE when a model/texture is replaced under the same file name.
-const CACHE = 'od-assets-v1';
+const CACHE = 'od-assets-v2';
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', e => e.waitUntil((async () => { for (const k of await caches.keys()) if (k !== CACHE) await caches.delete(k); await self.clients.claim(); })()));
 self.addEventListener('fetch', e => {

@@ -65,7 +65,8 @@ const DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]];
 
 // ------------------------------------------------------------------ renderer
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(devicePixelRatio, MOBILE ? 1.5 : 1.75));
+const QUALITY = localStorage.getItem('od3_q') || 'auto';
+renderer.setPixelRatio(Math.min(devicePixelRatio, QUALITY === 'low' ? 1 : QUALITY === 'high' ? 2 : MOBILE ? 1.5 : 1.75));
 renderer.setSize(innerWidth, innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.05;
@@ -85,7 +86,7 @@ const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), .5
 const nanGuard = new ShaderPass({ uniforms: { tDiffuse: { value: null } }, vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
   fragmentShader: 'uniform sampler2D tDiffuse; varying vec2 vUv; void main(){ vec4 c = texture2D(tDiffuse, vUv); if (any(isnan(c)) || any(isinf(c))) c = vec4(0.0, 0.0, 0.0, 1.0); gl_FragColor = vec4(min(c.rgb, vec3(64.0)), c.a); }' });
 if (!location.hash.includes('noguard')) composer.addPass(nanGuard);
-composer.addPass(bloom); if (location.hash.includes('nobloom')) bloom.enabled = false;
+composer.addPass(bloom); if (location.hash.includes('nobloom') || QUALITY === 'low') bloom.enabled = false;
 composer.addPass(new OutputPass());
 const grade = new ShaderPass({ uniforms: { tDiffuse: { value: null }, sat: { value: 1.12 }, con: { value: 1.05 }, vig: { value: .22 } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
@@ -107,7 +108,7 @@ addEventListener('resize', resize); resize();
 // lights
 const hemi = new THREE.HemisphereLight(0xffc9a8, 0x5a3c58, 1.1); scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xffd2a0, 2.6);
-sun.castShadow = true; sun.shadow.mapSize.set(MOBILE ? 1024 : 2048, MOBILE ? 1024 : 2048);
+sun.castShadow = QUALITY !== 'low'; sun.shadow.mapSize.set(MOBILE ? 1024 : 2048, MOBILE ? 1024 : 2048);
 Object.assign(sun.shadow.camera, { left: -18, right: 18, top: 18, bottom: -18, near: 1, far: 120 });
 sun.shadow.bias = -0.0005; sun.shadow.normalBias = .03;
 scene.add(sun, sun.target);
@@ -749,7 +750,9 @@ const ENV_EXTRA = ['house1', 'house2', 'house3', 'house4', 'umb1', 'umb2', 'umb3
 // bake all meshes of a model into one geometry (world transforms applied); with colours=true, material colours go to vertex colours
 function bakeGeo(root, colours) {
   root.updateMatrixWorld(true); const parts = [];
-  root.traverse(o => { if (!o.isMesh || !o.geometry?.attributes.position) return; let g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone(); g.applyMatrix4(o.matrixWorld);
+  root.traverse(o => { if (!o.isMesh || !o.geometry?.attributes.position) return; let g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
+    for (const k of ['position', 'normal']) { const at = g.attributes[k]; if (at && (!(at.array instanceof Float32Array) || at.normalized || at.isInterleavedBufferAttribute)) { const f = new Float32Array(at.count * 3); for (let q = 0; q < at.count; q++) { f[q * 3] = at.getX(q); f[q * 3 + 1] = at.getY(q); f[q * 3 + 2] = at.getZ(q); } g.setAttribute(k, new THREE.BufferAttribute(f, 3)); } } // quantized (gltfpack) → float
+    g.applyMatrix4(o.matrixWorld);
     for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal') g.deleteAttribute(k); if (!g.attributes.normal) g.computeVertexNormals();
     if (colours) { const c = (Array.isArray(o.material) ? o.material[0] : o.material)?.color || new THREE.Color(1, 1, 1); const n = g.attributes.position.count, a = new Float32Array(n * 3); for (let i = 0; i < n; i++) { a[i * 3] = c.r; a[i * 3 + 1] = c.g; a[i * 3 + 2] = c.b; } g.setAttribute('color', new THREE.BufferAttribute(a, 3)); }
     g.clearGroups(); parts.push(g); });
@@ -1287,7 +1290,7 @@ function gameOver(reason) { // she falls; the band comes back for her
   bank += picks; localStorage.setItem('od3_bank', bank); if ($('overBank')) $('overBank').textContent = `+${picks} ${BAND[sel].item} kasaya · kasa ${bank}`;
   const sc = Math.floor(score); const nb = sc > best; if (nb) { best = sc; localStorage.setItem('od3_best', best); }
   $('overScore').textContent = sc; $('overPicks').textContent = picks; $('overDist').textContent = Math.floor(dist); $('overBest').textContent = best;
-  $('newBest').classList.toggle('hide', !nb); $('overFace').src = faceSrc(sel); lbPrepare(sc);
+  $('newBest').classList.toggle('hide', !nb); $('overFace').src = faceSrc(sel); lbPrepare(sc); chalResult(sc);
   { const el = $('overScore'), t0 = performance.now(), D = 1100; const tick = () => { const k = Math.min(1, (performance.now() - t0) / D); el.textContent = Math.round(sc * (1 - Math.pow(1 - k, 3))); if (k < 1) requestAnimationFrame(tick); }; setTimeout(tick, 7400); el.textContent = '0';
     if (nb) setTimeout(confettiDom, 7600); }
   $('overLine').textContent = `${BAND[sel].name} düştü ama yalnız değil.`; $('overItem').textContent = BAND[sel].item;
@@ -1370,8 +1373,8 @@ $('goBtn').onclick = () => startRun();
 $('againBtn').onclick = () => startRun();
 $('menuBtn').onclick = () => toMenu();
 $('shareBtn').onclick = async () => { // share score + link (Web Share on phones, clipboard elsewhere)
-  const text = `OD Band – Burdayım oyununda ${BAND[sel].name} ile ${Math.floor(score)} puan yaptım! 🎸`, url = location.href.split('#')[0];
-  try { if (navigator.share) { await navigator.share({ title: 'OD Band – Burdayım', text, url }); return; } await navigator.clipboard.writeText(text + ' ' + url); $('shareBtn').textContent = 'KOPYALANDI ✓'; setTimeout(() => $('shareBtn').textContent = 'PUANIMI PAYLAŞ', 2000); } catch (e) { }
+  const me = (localStorage.getItem('od3_name') || '').slice(0, 16); const text = `OD Band – Burdayım'da ${BAND[sel].name} ile ${Math.floor(score)} puan yaptım! Beni geçebilir misin? 🎸`, url = `https://odband.love/#vs=${Math.floor(score)}&uy=${sel}${me ? '&ad=' + encodeURIComponent(me) : ''}`;
+  try { if (navigator.share) { await navigator.share({ title: 'OD Band – Burdayım', text, url }); return; } await navigator.clipboard.writeText(text + ' ' + url); $('shareBtn').textContent = 'KOPYALANDI ✓'; setTimeout(() => $('shareBtn').textContent = '⚔️ MEYDAN OKU', 2000); } catch (e) { }
 };
 $('prevBtn').onclick = () => selGirl(sel - 1);
 $('nextBtn').onclick = () => selGirl(sel + 1);
@@ -1382,15 +1385,18 @@ $('muteBtn').onclick = () => setMuted(!muted);
 const LB = { url: 'https://qmavlkuhxapntdgqikia.supabase.co', key: 'sb_publishable_CMbG9Qpc9A7xdGIxvAugyg_xmPdJp-A' }; // publishable key: read + insert only (RLS)
 const lbOn = () => !!(LB.url && LB.key);
 let lastRun = null;
-async function lbFetch(limit = 20) {
-  const r = await fetch(`${LB.url}/rest/v1/scores?select=name,score,member,created_at&order=score.desc,created_at.asc&limit=${limit}`, { headers: { apikey: LB.key } });
+function weekStartISO() { const now = new Date(Date.now() + 3 * 3600e3); const d = (now.getUTCDay() + 6) % 7; const m = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - d) - 3 * 3600e3; return new Date(m).toISOString(); } // Monday 00:00 İstanbul
+let lbTab = 'week';
+async function lbFetch(limit = 20, tab = 'all') {
+  const since = tab === 'week' ? `&created_at=gte.${encodeURIComponent(weekStartISO())}` : '';
+  const r = await fetch(`${LB.url}/rest/v1/scores?select=name,score,member,created_at&order=score.desc,created_at.asc&limit=${limit}${since}`, { headers: { apikey: LB.key } });
   if (!r.ok) throw new Error(r.status); return r.json();
 }
 function lbRender(el, rows, mine) {
   const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   el.innerHTML = rows.length ? rows.map(r => `<li class="${mine && r.name === mine.name && r.score === mine.score ? 'me' : ''}"><img src="${faceSrc(r.member)}" alt=""><span>${esc(r.name)}</span><b>${r.score}</b></li>`).join('') : '<li class="empty">Henüz skor yok. İlk sen ol!</li>';
 }
-async function lbShow() { $('lb').classList.remove('hide'); try { lbRender($('lbList'), await lbFetch(20), lastRun?.saved); } catch (e) { $('lbList').innerHTML = '<li class="empty">Skorlar şu an yüklenemedi.</li>'; } }
+async function lbShow() { $('lb').classList.remove('hide'); document.querySelectorAll('#lbTabs button').forEach(b => b.classList.toggle('on', b.dataset.t === lbTab)); $('lbList').innerHTML = '<li class="empty">Yükleniyor…</li>'; try { lbRender($('lbList'), await lbFetch(20, lbTab), lastRun?.saved); } catch (e) { $('lbList').innerHTML = '<li class="empty">Skorlar şu an yüklenemedi.</li>'; } }
 async function lbSave() {
   if (!lastRun || lastRun.saved) return; const name = $('lbName').value.replace(/\s+/g, ' ').trim().slice(0, 16);
   if (name.length < 2) { $('lbMsg').textContent = 'En az 2 harf yaz.'; return; }
@@ -1408,7 +1414,7 @@ function lbPrepare(sc) { // called when the game-over panel is filled in
   $('lbSaveBtn').disabled = false; $('lbSaveBtn').textContent = 'SKORU KAYDET'; $('lbName').value = localStorage.getItem('od3_name') || '';
 }
 $('lbSaveBtn').onclick = lbSave; $('lbName').addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') lbSave(); });
-$('lbBtn').onclick = lbShow; $('wardBtn').onclick = openWard; document.querySelectorAll('#wardTabs button').forEach(b => b.onclick = () => { wardCat = b.dataset.c; renderWard(); }); $('storyBtn').onclick = storyCard; $('lbBtn').classList.toggle('hide', !lbOn());
+$('lbBtn').onclick = lbShow; document.querySelectorAll('#lbTabs button').forEach(b => b.onclick = () => { lbTab = b.dataset.t; lbShow(); }); $('missChip').onclick = () => { missionsUI(); $('missions').classList.remove('hide'); }; $('setBtn').onclick = () => { settingsUI(); $('settings').classList.remove('hide'); }; document.querySelectorAll('#qBtns button').forEach(b => b.onclick = () => { if (b.dataset.q === QUALITY) return; localStorage.setItem('od3_q', b.dataset.q); location.reload(); }); $('wardBtn').onclick = openWard; document.querySelectorAll('#wardTabs button').forEach(b => b.onclick = () => { wardCat = b.dataset.c; renderWard(); }); $('storyBtn').onclick = storyCard; $('lbBtn').classList.toggle('hide', !lbOn());
 document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => b.closest('.panel').classList.add('hide'));
 function buildFaces() { $('faces').innerHTML = [...Array(NGIRLS)].map((_, i) => `<button data-i="${i}" title="${BAND[i].name}"><img src="${faceSrc(i)}" alt="${BAND[i].name}"></button>`).join(''); $('faces').querySelectorAll('button').forEach(b => b.onclick = () => selGirl(+b.dataset.i)); }
 buildFaces();
@@ -1448,7 +1454,8 @@ function toMenu() {
   const ring = new THREE.Mesh(new THREE.RingGeometry(.55, .72, 48), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .75 })); ring.rotation.x = -Math.PI / 2; ring.position.y = .02; ring.name = 'ring'; menuStage.add(ring);
   menuGirls = [...Array(NGIRLS).keys()].map(i => { const g = makeGirl(i); menuStage.add(g.holder); playAct(g, 'idle', 0, 1); if (g.actions.idle) g.actions.idle.time = i * .7; g.holder.rotation.y = Math.PI; return g; });
   selGirl(sel, true);
-  $('bestTxt').textContent = best ? `🏆 REKOR ${best}` : '🏆 REKOR —'; if ($('bankTxt')) $('bankTxt').textContent = `🎸 KASA ${bank}`;
+  $('bestTxt').textContent = best ? `🏆 REKOR ${best}` : '🏆 REKOR —'; if ($('bankTxt')) $('bankTxt').textContent = `🎸 KASA ${bank}`; missionsUI(); chalBanner();
+  if (CHAL && !toMenu.chalSel) { toMenu.chalSel = true; selGirl(CHAL.uy, true); }
 }
 function menuSlot(i) { // selected girl front & centre, the others in a row behind her
   if (i === sel) return [0, .9];
@@ -1766,6 +1773,29 @@ async function storyCard() { const c = await makeStoryCard(); const url = c.toDa
       if (navigator.canShare?.({ files: [file] })) { await navigator.share({ files: [file], title: 'OD Band – Burdayım', text: 'odband.love' }); return; } } catch (e) { }
     const a = document.createElement('a'); a.href = url; a.download = 'odband-burdayim.jpg'; a.click(); };
   $('storySave').onclick = () => { const a = document.createElement('a'); a.href = url; a.download = 'odband-burdayim.jpg'; a.click(); }; }
+const CHAL = params.has('vs') ? { vs: Math.max(0, Math.min(2e6, parseInt(params.get('vs')) || 0)), ad: (params.get('ad') || 'Bir arkadaşın').replace(/[<>&"]/g, '').slice(0, 16), uy: Math.max(0, Math.min(4, parseInt(params.get('uy')) || 0)) } : null;
+function chalBanner() { const el = $('chal'); if (!el) return; if (!CHAL || !CHAL.vs) { el.classList.add('hide'); return; } el.classList.remove('hide'); el.innerHTML = `🔥 <b>${CHAL.ad}</b> seni <b>${CHAL.vs}</b> puanla yenmeye çağırıyor!`; }
+function chalResult(sc) { if (!CHAL || !CHAL.vs) return; if (sc > CHAL.vs) { setTimeout(() => { showMsg('MEYDAN OKUMAYI KAZANDIN!', 2.4); confettiDom(); }, 7800); $('overLine').textContent = `${CHAL.ad}'ın ${CHAL.vs} puanını geçtin!`; } else $('overLine').textContent = `Hedef ${CHAL.vs} puan — ${CHAL.vs - sc} kaldı!`; }
+const MISSION_POOL = [
+  { id: 'picks50', t: 'Tek koşuda 50 eşya topla', r: 100, ok: () => picks >= 50 },
+  { id: 'dist800', t: '800 metre koş', r: 100, ok: () => dist >= 800 },
+  { id: 'gig', t: 'BURDAYIM\'ı tamamla, sahneye çık', r: 150, ok: () => state === 'gig' || state === 'photo' },
+  { id: 'combo3', t: 'x3 komboya ulaş', r: 120, ok: () => comboMult >= 3 },
+  { id: 'fly', t: 'Modundayız plağıyla uç', r: 80, ok: () => flyT > 0 },
+  { id: 'score2k', t: 'Tek koşuda 2000 puan yap', r: 120, ok: () => score >= 2000 },
+  { id: 'beach', t: 'Gün batımı kumsalına ulaş', r: 100, ok: () => curWorld === 'beach' && state === 'run' },
+  { id: 'sun', t: 'Güneş topla', r: 60, ok: () => sunT > 0 },
+];
+function todayKey() { const n = new Date(Date.now() + 3 * 3600e3); return n.toISOString().slice(0, 10); }
+let MS = JSON.parse(localStorage.getItem('od3_missions') || '{}');
+function missionsToday() { const k = todayKey(); if (MS.date !== k) { let h = 0; for (const c of k) h = (h * 31 + c.charCodeAt(0)) >>> 0; const pool = [...MISSION_POOL], pickd = []; while (pickd.length < 3) { h = (h * 1103515245 + 12345) >>> 0; pickd.push(pool.splice(h % pool.length, 1)[0].id); } MS = { date: k, ids: pickd, done: [] }; localStorage.setItem('od3_missions', JSON.stringify(MS)); } return MS.ids.map(id => MISSION_POOL.find(m => m.id === id)).filter(Boolean); }
+let missT = 0;
+function missionTick(dt) { if (state !== 'run' && state !== 'gig' && state !== 'photo') return; missT -= dt; if (missT > 0) return; missT = .4;
+  for (const m of missionsToday()) if (!MS.done.includes(m.id) && m.ok()) { MS.done.push(m.id); localStorage.setItem('od3_missions', JSON.stringify(MS)); bank += m.r; localStorage.setItem('od3_bank', bank);
+    const tt = $('toast'); if (tt) { tt.innerHTML = `🎯 GÖREV TAMAM <b>+${m.r} 🎸</b><span>${m.t}</span>`; tt.classList.remove('show'); void tt.offsetWidth; tt.classList.add('show'); } sfx(784, .3, 'triangle', .07, 400); buzz(30); } }
+function missionsUI() { const ms = missionsToday(), done = ms.filter(m => MS.done.includes(m.id)).length; if ($('missChip')) $('missChip').textContent = `🎯 GÖREV ${done}/${ms.length}`;
+  if ($('missList')) $('missList').innerHTML = ms.map(m => `<li class="${MS.done.includes(m.id) ? 'ok' : ''}"><i>${MS.done.includes(m.id) ? '✓' : '○'}</i><span>${m.t}</span><b>+${m.r} 🎸</b></li>`).join(''); }
+function settingsUI() { document.querySelectorAll('#qBtns button').forEach(b => b.classList.toggle('on', b.dataset.q === QUALITY)); }
 function confettiDom() { const box = $('over'); for (let i = 0; i < 70; i++) { const c = document.createElement('i'); c.className = 'conf'; c.style.left = rand(5, 95) + '%'; c.style.background = pick(['#ff4fa3', '#4de1ff', '#ffd23a', '#a66bff', '#fff']); c.style.animationDelay = rand(0, .6) + 's'; c.style.setProperty('--x', rand(-120, 120) + 'px'); c.style.setProperty('--r', rand(-720, 720) + 'deg'); box.appendChild(c); setTimeout(() => c.remove(), 3200); } }
 function comboHUD() { const el = $('combo'); if (!el) return; const on = state === 'run' && combo >= 3; el.classList.toggle('on', on); if (!on) return;
   el.querySelector('b').textContent = comboMult > 1 ? 'x' + comboMult : combo; el.querySelector('span').textContent = comboMult > 1 ? combo + ' KOMBO' : 'KOMBO'; el.querySelector('i').style.transform = `scaleX(${Math.max(0, comboT / COMBO_WIN).toFixed(3)})`; }
@@ -2182,7 +2212,7 @@ function updateParticles(dt) {
       else if (!st.armed && y > st.min + .14) st.armed = true; }); }
   for (let i = 0; i < SMAX; i++) { if (sLife[i] <= 0) { if (sPos[i * 3 + 1] > -50) sPos[i * 3 + 1] = -99; continue; } sLife[i] -= dt; sVel[i * 3 + 1] -= sGrav[i] * dt; const drag = 1 - Math.min(1, dt * 1.8); sVel[i * 3] *= drag; sVel[i * 3 + 2] *= drag;
     sPos[i * 3] += sVel[i * 3] * dt; sPos[i * 3 + 1] = Math.max(.02, sPos[i * 3 + 1] + sVel[i * 3 + 1] * dt); sPos[i * 3 + 2] += sVel[i * 3 + 2] * dt; if (sLife[i] <= 0) sPos[i * 3 + 1] = -99; }
-  ambience(dt); trailFx(dt);
+  ambience(dt); trailFx(dt); missionTick(dt);
   blob.visible = (state === 'run' || state === 'down') && !!player; if (blob.visible) { const p = player.holder.position; blob.position.set(p.x, .025, p.z); const k = 1 / (1 + py * .35); blob.scale.setScalar(k); blob.material.opacity = Math.max(.15, k); }
   sGeo.attributes.position.needsUpdate = true; sGeo.attributes.color.needsUpdate = true;
   for (let i = 0; i < PMAX; i++) { if (pLife[i] <= 0) { pPos[i * 3 + 1] = -99; continue; } pLife[i] -= dt; pVel[i * 3 + 1] -= 9 * dt;
@@ -2190,7 +2220,7 @@ function updateParticles(dt) {
   pGeo.attributes.position.needsUpdate = true; pGeo.attributes.color.needsUpdate = true;
 }
 // adaptive resolution: if the phone can't hold ~45 fps, render fewer pixels
-let fpsAcc = 0, fpsN = 0, prLevel = 0; const PR_STEPS = MOBILE ? [1.5, 1.2, 1.0, .85] : [1.75, 1.4, 1.1];
+let fpsAcc = 0, fpsN = 0, prLevel = 0; const PR_STEPS = QUALITY === 'low' ? [1, .85, .7] : QUALITY === 'high' ? [2, 1.75, 1.4] : MOBILE ? [1.5, 1.2, 1.0, .85] : [1.75, 1.4, 1.1];
 function adaptResolution(dt) {
   if (state !== 'run') return; fpsAcc += dt; fpsN++;
   if (fpsAcc > 2) { const fps = fpsN / fpsAcc; fpsAcc = 0; fpsN = 0;

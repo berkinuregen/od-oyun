@@ -192,6 +192,17 @@
   .hw b{display:block;font-family:Anton,Impact;font-weight:400;letter-spacing:.04em;font-size:15px;margin-bottom:2px}
   .hw span{display:block;font-size:11.5px;line-height:1.35;opacity:.85}.hw span b{display:inline;font-family:Manrope;font-weight:800;font-size:11.5px}
   .hw em{font-style:normal;font-weight:800}.hw em.y{color:#ffd23a}.hw em.c{color:#4de1ff}.hw em.r{color:#ff5a5a}
+  #missChip{height:40px}
+  .chal{max-width:360px;text-align:center;background:linear-gradient(135deg,rgba(255,79,163,.85),rgba(166,107,255,.85));border:2px solid #140a16;box-shadow:4px 4px 0 #140a16;border-radius:16px;padding:8px 14px;font:700 13px Manrope,sans-serif;transform:rotate(-1deg)}
+  .chal b{font-family:Anton,Impact;font-weight:400;font-size:16px;letter-spacing:.03em}
+  #toast{position:fixed;left:50%;top:calc(max(14px,env(safe-area-inset-top)) + 150px);transform:translate(-50%,-20px);opacity:0;z-index:20;pointer-events:none;background:rgba(20,8,24,.9);border:2px solid var(--gold);border-radius:18px;padding:10px 16px;text-align:center;font:800 13px Manrope,sans-serif;letter-spacing:.06em;color:var(--gold)}
+  #toast b{color:#fff;margin-left:6px}#toast span{display:block;color:#fff;font-weight:600;letter-spacing:0;margin-top:2px;opacity:.85}
+  #toast.show{animation:toast 2.8s ease-out}
+  @keyframes toast{0%{opacity:0;transform:translate(-50%,-20px)}10%,80%{opacity:1;transform:translate(-50%,0)}100%{opacity:0;transform:translate(-50%,-10px)}}
+  .misslist{list-style:none;padding:0;margin:8px 0 0;text-align:left}
+  .misslist li{display:grid;grid-template-columns:28px 1fr auto;align-items:center;gap:8px;padding:12px 10px;border-radius:14px;background:var(--glass2);border:1px solid var(--line);margin-bottom:8px;font-weight:700;font-size:14px}
+  .misslist li i{font-style:normal;font-size:18px;color:var(--gold);text-align:center}.misslist li b{color:var(--gold);font-size:13px}
+  .misslist li.ok{opacity:.6}.misslist li.ok span{text-decoration:line-through}
   .ltip{display:block;min-height:34px;margin:14px auto 6px;max-width:300px;font:700 13px Manrope,sans-serif;color:#ffe3a0;opacity:.9;transition:opacity .4s}
   .credits li span{opacity:.85;color:#fff;text-align:right;min-width:0}
   .card{overflow-x:hidden}
@@ -313,6 +324,7 @@
     .odlogo{width:min(32vw,150px)}
     .logo .sub span{font-size:30px}.ask span{font-size:17px}
     .faces button{width:42px;height:42px}#goBtn{font-size:24px;padding:7px 46px}
+    .odlogo{width:min(28vw,120px)}.sheet{gap:6px!important}.chal{font-size:11px;padding:4px 10px}.chal b{font-size:13px}.chip{height:28px}#missChip,.chip.agite{height:32px}.ask{margin-top:6px}
   }
   @media (min-aspect-ratio:5/4){
     .sheet{margin:0!important;width:auto!important;border-radius:26px!important;background:rgba(20,8,24,.62)!important;border:1px solid var(--line);backdrop-filter:blur(10px);padding:14px 16px!important;bottom:4vh!important}
@@ -331,6 +343,7 @@
 <div id="sweep" class="layer"></div>
 <div id="worldTitle"></div>
 <div id="flash" class="layer"></div>
+<div id="toast"></div>
 
 <div id="hud" class="layer hide">
   <div class="hrow">
@@ -354,13 +367,14 @@
     <div class="who" id="who"></div>
     <div class="faces" id="faces"></div>
     <button class="go" id="goBtn">Koş ▶</button>
-    <div class="chips"><span class="chip" id="bestTxt"></span><span class="chip gold" id="bankTxt"></span><button class="chip agite" id="lookBtn"><img src="assets/agite_white.png" alt="AGITÉ"><span id="lookTxt"></span></button></div>
+    <div id="chal" class="chal hide"></div>
+    <div class="chips"><button class="chip" id="missChip">🎯 GÖREV 0/3</button><span class="chip" id="bestTxt"></span><span class="chip gold" id="bankTxt"></span><button class="chip agite" id="lookBtn"><img src="assets/agite_white.png" alt="AGITÉ"><span id="lookTxt"></span></button></div>
     <div class="dock">
       <button class="tile" id="wardBtn"><i>👗</i><span>Dolap</span></button>
       <button class="tile" id="lbBtn"><i>🏆</i><span>Skorlar</span></button>
       <button class="tile" id="bandBtn"><i>🎸</i><span>Ekip</span></button>
       <button class="tile" id="howBtn"><i>❔</i><span>Nasıl</span></button>
-      <button class="tile" id="muteBtn"><i>🔊</i><span>Ses</span></button>
+      <button class="tile" id="setBtn"><i>⚙️</i><span>Ayarlar</span></button>
     </div>
   </div>
 </div>
@@ -432,9 +446,26 @@
 
 <div id="lb" class="panel hide"><div class="card">
   <h2>SKOR TABLOSU</h2>
-  <p style="opacity:.7;font-size:13px">En yüksek 20 koşu</p>
+  <div id="lbTabs" class="tabs"><button data-t="week">Bu hafta</button><button data-t="all">Tüm zamanlar</button></div>
   <ol id="lbList" class="lblist"><li class="empty">Yükleniyor…</li></ol>
   <p style="margin-top:22px"><button class="go" data-close>Tamam</button></p>
+</div></div>
+
+<div id="missions" class="panel hide"><div class="card">
+  <h2>GÜNÜN GÖREVLERİ</h2>
+  <p class="sub2">Her gün yeni 3 görev. Tamamlayınca kasaya 🎸 eklenir.</p>
+  <ul id="missList" class="misslist"></ul>
+  <p style="margin-top:16px"><button class="go" data-close>Tamam</button></p>
+</div></div>
+
+<div id="settings" class="panel hide"><div class="card">
+  <h2>AYARLAR</h2>
+  <h3>SES</h3>
+  <p><button class="ghost" id="muteBtn">Ses: açık</button></p>
+  <h3>GRAFİK KALİTESİ</h3>
+  <div id="qBtns" class="tabs"><button data-q="low">Düşük</button><button data-q="auto">Otomatik</button><button data-q="high">Yüksek</button></div>
+  <p class="sub2">Telefon ısınırsa ya da takılırsa "Düşük"ü seç. Değişince oyun yeniden yüklenir.</p>
+  <p style="margin-top:12px"><button class="go" data-close>Tamam</button></p>
 </div></div>
 
 <div id="how" class="panel hide"><div class="card">
@@ -466,7 +497,7 @@
   <div id="lbSave" class="lbsave hide"><input id="lbName" maxlength="16" placeholder="Adın / takma adın" autocomplete="nickname"><button class="go" id="lbSaveBtn">SKORU KAYDET</button><div id="lbMsg" class="lbmsg"></div></div>
   <ol id="lbMini" class="lblist hide"></ol>
   <p style="margin-top:20px"><button class="go" id="againBtn">Tekrar koş ▶</button></p>
-  <p><button class="ghost hot" id="storyBtn">📸 STORY KARTI</button> <button class="ghost" id="shareBtn" style="text-transform:none">PUANIMI PAYLAŞ</button> <button class="ghost" id="menuBtn" style="text-transform:none">BAŞKA ÜYEYLE KOŞ</button></p>
+  <p><button class="ghost hot" id="storyBtn">📸 STORY KARTI</button> <button class="ghost" id="shareBtn" style="text-transform:none">⚔️ MEYDAN OKU</button> <button class="ghost" id="menuBtn" style="text-transform:none">BAŞKA ÜYEYLE KOŞ</button></p>
 </div></div>
 
 <div id="photoUi" class="layer hide">
@@ -479,6 +510,6 @@
 
 <div id="loading"><div><img src="assets/logo_red.png" alt="OD Band" style="width:min(56vw,260px);display:block;margin:0 auto 6px"><div class="lbar"><i id="lbar"></i></div><small id="ltip" class="ltip"></small><small id="ltxt">yükleniyor…</small></div></div>
 
-<script type="module" src="game.js?v=20261130m"></script>
+<script type="module" src="game.js?v=20261201c"></script>
 </body>
 </html>
