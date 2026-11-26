@@ -489,13 +489,15 @@ function addBounce(mat, amp, speed = 6.5) {
   mat.customProgramCacheKey = () => 'bounce' + amp + speed; return mat;
 }
 function loadCrowdModels() {
-  const files = ['models/crowd/man.glb', 'models/crowd/woman.glb'];
-  return Promise.all(files.map(f => new Promise(res => loader.load(f, g => { (CROWD.raw ||= []).push(g); try { CROWD.kinds.push(bakeKind(g)); } catch (e) { console.warn('crowd bake', e); } res(); }, undefined, () => res()))));
+  const files = [1, 2, 3, 4, 5, 6].map(i => `models/fans/fan${i}.glb`);
+  return Promise.all(files.map(f => new Promise(res => loader.load(f, g => {
+    g.scene.traverse(o => { if (o.isMesh && o.material) { o.material.metalness = 0; o.material.roughness = Math.max(.7, o.material.roughness ?? 1); } });
+    (CROWD.raw ||= []).push(g); FANS.push(g); try { CROWD.kinds.push(bakeKind(g)); } catch (e) { console.warn('crowd bake', e); } res(); }, undefined, () => res()))));
 }
 function bakeKind(gltf) {
   const root = gltf.scene, mixer = new THREE.AnimationMixer(root);
   const clip = n => gltf.animations.find(c => c.name.toLowerCase().includes(n));
-  const pairs = [[['clapping', .12], ['clapping', .42]], [['jump', .18], ['jump', .48]]];
+  const pairs = gltf.animations.some(c => /wave/i.test(c.name)) ? [[['wave', .22], ['wave', .55]], [['wave', .4], ['wave', .8]]] : [[['clapping', .12], ['clapping', .42]], [['jump', .18], ['jump', .48]]];
   const crowdMat = CROWD.mat || (CROWD.mat = addBounce(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .85, flatShading: true }), .12, 3.3));
   const mats = new Map(); const mat = m => { if (!mats.has(m)) mats.set(m, addBounce(new THREE.MeshStandardMaterial({ color: m.color, roughness: .85, flatShading: true }), .12, 3.3)); return mats.get(m); };
   let norm = null;
@@ -534,12 +536,12 @@ function buildCrowd(spots, signShare = .14) {
     if (Math.random() < signShare) signs[(Math.random() * signs.length) | 0].push(m.clone());
   }
   for (const b of buckets.values()) {
-    const poses = CROWD.kinds[b.kind].pairs[b.pair].map(parts => { const meshes = parts.map(pt => { const im = new THREE.InstancedMesh(pt.geo, pt.mat, b.list.length); b.list.forEach((e, i) => { im.setMatrixAt(i, e.mat); im.setColorAt(i, e.col); }); im.frustumCulled = false; group.add(im); return im; }); return meshes; });
+    const poses = CROWD.kinds[b.kind].pairs[b.pair].map(parts => { const meshes = parts.map(pt => { const im = new THREE.InstancedMesh(pt.geo, pt.mat, b.list.length); b.list.forEach((e, i) => { im.setMatrixAt(i, e.mat); im.setColorAt(i, e.col); }); im.computeBoundingSphere(); im.boundingSphere.radius += 1.5; im.frustumCulled = true; group.add(im); return im; }); return meshes; });
     group.userData.toggles.push({ poses, ph: b.ph, rate: b.pair === 1 ? 2.6 : 3.4 });
   }
   signs.forEach((list, ti) => { if (!list.length) return; const mb = addBounce(new THREE.MeshStandardMaterial({ map: crowdSignTex[ti], roughness: .8 }), .14, 3.3), ms = new THREE.MeshStandardMaterial({ color: 0x8a6a48 });
     const bi = new THREE.InstancedMesh(crowdSignGeo.board, mb, list.length), si = new THREE.InstancedMesh(crowdSignGeo.stick, addBounce(ms, .14, 3.3), list.length);
-    list.forEach((mm, i) => { bi.setMatrixAt(i, mm); si.setMatrixAt(i, mm); }); bi.frustumCulled = si.frustumCulled = false; group.add(bi, si); });
+    list.forEach((mm, i) => { bi.setMatrixAt(i, mm); si.setMatrixAt(i, mm); }); bi.computeBoundingSphere(); si.computeBoundingSphere(); bi.boundingSphere.radius += 1; si.boundingSphere.radius += 1; group.add(bi, si); });
   CROWD.groups.push(group); return group;
 }
 function crowdTick(t) {
@@ -547,7 +549,7 @@ function crowdTick(t) {
   for (const g of CROWD.groups) for (const tg of g.userData.toggles) { const on = (Math.floor(t * tg.rate) + tg.ph) % 2; tg.poses[0].forEach(im => im.visible = on === 0); tg.poses[1].forEach(im => im.visible = on === 1); }
 }
 function crowd(seg, side, a, b) {
-  const near = MOBILE ? 1 : 2, rows = MOBILE ? 3 : 5, spots = [], far = [];
+  const near = MOBILE ? 2 : 3, rows = MOBILE ? 4 : 6, spots = [], far = [];
   const yaw = side > 0 ? -Math.PI / 2 : Math.PI / 2; // face the road
   for (let r = 0; r < rows; r++) for (let s = a + rand(0, .6); s < b; s += rand(1.0, 1.5)) {
     const p = { x: side * (ROAD_W / 2 + 1.5 + r * 1.8 + rand(-.3, .3)), z: -s, yaw };
@@ -1427,8 +1429,8 @@ function gigStage() {
   return g;
 }
 function gigAudience(s0) {
-  const g = new THREE.Group(); const rows = MOBILE ? 5 : 8, spots = [];
-  for (let r = 0; r < rows; r++) for (let x = -7.6 + (r % 2) * .45; x <= 7.6; x += rand(.85, 1.1)) if (Math.abs(x) > 1.5) // keep a camera aisle down the middle
+  const g = new THREE.Group(); const rows = MOBILE ? 6 : 10, spots = [];
+  for (let r = 0; r < rows; r++) for (let x = -9.2 + (r % 2) * .45; x <= 9.2; x += rand(.85, 1.1)) if (Math.abs(x) > 1.5) // keep a camera aisle down the middle
     spots.push({ x: x + rand(-.15, .15), z: -(s0 - 1.7 - r * 1.15 + rand(-.2, .2)), yaw: Math.PI }); // facing the stage
   g.add(buildCrowd(spots, .14));
   const pts = []; for (let k = 0; k < spots.length / 9; k++) pts.push(rand(-7.5, 7.5), rand(1.9, 2.2), -(s0 - 3.5 - rand(0, rows * 1.15)));
@@ -1723,7 +1725,7 @@ function frame() {
   setWorld('beach', true);
   requestAnimationFrame(frame);
   await withTimeout(document.fonts.ready, 3000);
-  const propsP = loadProps(); loadCrowdModels(); loadPhotographer(); loadLyrics(); setTimeout(loadFans, 800); const envP = loadEnv();
+  const propsP = loadProps(); loadCrowdModels(); loadPhotographer(); loadLyrics(); const envP = loadEnv();
   await loadGirls(p => { $('lbar').style.width = (p * 100) + '%'; $('ltxt').textContent = `karakterler yükleniyor… ${Math.round(p * 100)}%`; });
   if (LOOK === 2 && !LOOK_TPL[2].some(Boolean)) { LOOK = 1; girlTemplates = LOOK_TPL[1]; localStorage.setItem('od3_look', '1'); buildFaces(); updateLookBtn(); await loadGirls(p => { $('lbar').style.width = (p * 100) + '%'; }); }
   await withTimeout(Promise.all([envP, propsP]), 8000);
