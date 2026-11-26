@@ -311,6 +311,19 @@ const M2 = {
   water: new THREE.MeshPhongMaterial({ color: 0x6b4a7a, specular: 0xffd0a0, shininess: 90, normalMap: (() => { const t = seaTex.clone(); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(1, 1); t.needsUpdate = true; return t; })(), normalScale: new THREE.Vector2(.6, .6) }),
   foam: new THREE.MeshBasicMaterial({ color: 0xfff4e6, transparent: true, opacity: .55, depthWrite: false }),
 };
+// photo-scanned ground textures (Poly Haven, CC0), 512 px colour + normal; the canvas-painted ones stay as a fallback
+const GROUND_TEX = { grass: ['grass', 1.6, 0xc4e88e], dirt: ['dirt', 2], cobble: ['cobble', 1.2], paving: ['paving', 1.3], sand: ['sand', 1.5], sandRoad: ['sandroad', 2] };
+async function loadGroundTex() {
+  const tl = new THREE.TextureLoader(); const ld = u => new Promise(res => tl.load(u, res, undefined, () => res(null)));
+  await Promise.all(Object.entries(GROUND_TEX).map(async ([k, [f, rep, tint]]) => {
+    const [c, n] = await Promise.all([ld(`assets/tex/${f}_c.jpg`), ld(`assets/tex/${f}_n.jpg`)]); if (!c) return;
+    for (const t of [c, n]) if (t) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rep, rep); t.anisotropy = 8; }
+    c.colorSpace = THREE.SRGBColorSpace; const m = M2[k]; m.map = c; if (n) { m.normalMap = n; m.normalScale = new THREE.Vector2(.8, .8); } m.color.set(tint ?? 0xffffff); m.needsUpdate = true;
+    try { for (const cl of _layerMats.values()) if (cl.userData.src === m) { cl.map = m.map; cl.normalMap = m.normalMap; cl.normalScale = m.normalScale; cl.color.copy(m.color); cl.needsUpdate = true; } } catch (e) { } // layer clones made before this finished
+  }));
+}
+await withTimeout(loadGroundTex(), 5000);
+
 const crowdTime = { value: 0 };
 M2.crowd.onBeforeCompile = sh => { sh.uniforms.uTime = crowdTime; sh.vertexShader = 'uniform float uTime;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  transformed.y += abs(sin(uTime * 6.5 + float(gl_InstanceID) * 1.37)) * 0.3;'); };
 const G2 = { ico: new THREE.IcosahedronGeometry(1, 0), cone: new THREE.ConeGeometry(1, 1, 7), dodec: new THREE.DodecahedronGeometry(1, 0) };
@@ -391,7 +404,7 @@ function worldAt(seg, s) { return seg.from && s < seg.mid ? seg.from : seg.world
 
 // builds road, ground and scenery of world `w` for the stretch a..b of a segment
 const _layerMats = new Map(), seaClones = [];
-function layered(mat, L) { const k = mat.uuid + ':' + L; let m = _layerMats.get(k); if (!m) { m = mat.clone(); m.polygonOffset = true; m.polygonOffsetFactor = 1 + L; m.polygonOffsetUnits = 6 * (1 + L); _layerMats.set(k, m); if (mat === M2.water) seaClones.push(m); } return m; }
+function layered(mat, L) { const k = mat.uuid + ':' + L; let m = _layerMats.get(k); if (!m) { m = mat.clone(); m.userData.src = mat; m.polygonOffset = true; m.polygonOffsetFactor = 1 + L; m.polygonOffsetUnits = 6 * (1 + L); _layerMats.set(k, m); if (mat === M2.water) seaClones.push(m); } return m; }
 function buildPart(seg, w, a, b, isStart, isEnd) {
   const L = (seg.n % 4) * 2 + (isStart ? 0 : 1), LM = m => layered(m, L);
   const H = ROAD_W / 2, gy = seg.gy - (isStart ? 0 : .003); if (!params.has('nofill')) fillLand(seg, w, a, b);
@@ -1575,7 +1588,8 @@ function gigStage() {
   for (const x of [-W / 2 - .2, W / 2 + .2]) { const sp = new THREE.Mesh(new THREE.BoxGeometry(1.2, 3.4, 1), [M.ampSide, M.ampSide, M.ampSide, M.ampSide, M.amp, M.ampSide]); sp.position.set(x, 1.7, -1.2); sp.castShadow = true; g.add(sp); }
   const roof = new THREE.Mesh(G.box, M.metal); roof.scale.set(W + 1, .3, .3); roof.position.set(0, 6.9, -.6); g.add(roof);
   const lg = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 3.08), new THREE.MeshBasicMaterial({ map: T.logoRed, transparent: true, alphaTest: .05, side: THREE.DoubleSide })); lg.position.set(0, 8.7, -.6); g.add(lg);
-  const skirt = new THREE.Mesh(new THREE.PlaneGeometry(W, .9), new THREE.MeshStandardMaterial({ map: T.od })); skirt.position.set(0, .45, .01); g.add(skirt);
+  const skTex = T.od.clone(); skTex.wrapS = THREE.RepeatWrapping; skTex.repeat.set(Math.max(1, Math.round(W / .9 / (512 / 160))), 1); skTex.needsUpdate = true; // tile the banner instead of stretching it
+  const skirt = new THREE.Mesh(new THREE.PlaneGeometry(W, .9), new THREE.MeshStandardMaterial({ map: skTex })); skirt.position.set(0, .45, .01); g.add(skirt);
   for (const x of [-W / 2 - .2, W / 2 + .2]) { const p = new THREE.Mesh(G.box, M.metal); p.scale.set(.25, 6.9, .25); p.position.set(x, 3.45, -.6); g.add(p); }
   g.userData.beams = [];
   for (let i = 0; i < 6; i++) { const col = [0xff3d9a, 0x4de1ff, 0xffcf4a][i % 3]; const lg = new THREE.Group(); lg.position.set(-W / 2 + 1 + i * (W - 2) / 5, 6.7, -.6); g.add(lg);
