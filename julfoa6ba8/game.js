@@ -490,7 +490,7 @@ function addBounce(mat, amp, speed = 6.5) {
 }
 function loadCrowdModels() {
   const files = ['models/crowd/man.glb', 'models/crowd/woman.glb'];
-  return Promise.all(files.map(f => new Promise(res => loader.load(f, g => { try { CROWD.kinds.push(bakeKind(g)); } catch (e) { console.warn('crowd bake', e); } res(); }, undefined, () => res()))));
+  return Promise.all(files.map(f => new Promise(res => loader.load(f, g => { (CROWD.raw ||= []).push(g); try { CROWD.kinds.push(bakeKind(g)); } catch (e) { console.warn('crowd bake', e); } res(); }, undefined, () => res()))));
 }
 function bakeKind(gltf) {
   const root = gltf.scene, mixer = new THREE.AnimationMixer(root);
@@ -840,7 +840,7 @@ function prepGirl(gltf) {
 }
 function findClip(anims, names) { for (const n of names) { const c = anims.find(a => a.name.toLowerCase().includes(n)); if (c) return c; } return null; }
 function makeGirl(i) {
-  const tpl = girlTemplates[i];
+  const tpl = i === -1 ? PHOTOG : girlTemplates[i];
   const holder = new THREE.Group(); const inner = new THREE.Group(); holder.add(inner);
   let mixer = null, actions = {};
   if (tpl) {
@@ -1029,6 +1029,7 @@ addEventListener('keydown', e => {
   else if (k === 'ArrowRight' || k === 'd' || k === 'D') act('right');
   else if (k === 'ArrowUp' || k === 'w' || k === 'W' || k === ' ') { state === 'run' ? act('up') : state === 'menu' && act('go'); }
   else if (k === 'ArrowDown' || k === 's' || k === 'S') act('down');
+  else if ((k === ' ' || k === 'Enter') && state === 'photo') shoot();
   else if (k === 'Enter') { if (state === 'menu') act('go'); else if (state === 'over' && downT > 7.6) startRun(); }
   else if (k === 'm' || k === 'M') setMuted(!muted);
   else if ((k === 'k' || k === 'K') && state === 'run') gigShortcut();
@@ -1036,7 +1037,7 @@ addEventListener('keydown', e => {
   if (k.startsWith('Arrow') || k === ' ') e.preventDefault();
 });
 let touch = null;
-addEventListener('pointerdown', e => { ac(); touch = { x: e.clientX, y: e.clientY, used: false }; });
+addEventListener('pointerdown', e => { ac(); touch = { x: e.clientX, y: e.clientY, used: false }; if (state === 'photo' && !e.target.closest?.('button')) shoot(); });
 addEventListener('pointermove', e => { if (!touch || touch.used) return; const dx = e.clientX - touch.x, dy = e.clientY - touch.y; if (Math.hypot(dx, dy) > 28) { touch.used = true; if (Math.abs(dx) > Math.abs(dy)) act(dx < 0 ? 'left' : 'right'); else act(dy < 0 ? 'up' : 'down'); } });
 addEventListener('pointerup', () => touch = null);
 addEventListener('pointercancel', () => touch = null);
@@ -1068,7 +1069,7 @@ $('muteBtn').onclick = () => setMuted(!muted);
 document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => b.closest('.panel').classList.add('hide'));
 function buildFaces() { $('faces').innerHTML = [...Array(NGIRLS)].map((_, i) => `<button data-i="${i}" title="${BAND[i].name}"><img src="${faceSrc(i)}" alt="${BAND[i].name}"></button>`).join(''); $('faces').querySelectorAll('button').forEach(b => b.onclick = () => selGirl(+b.dataset.i)); }
 buildFaces();
-function updateLookBtn() { $('lookBtn').classList.toggle('on', LOOK === 2); $('lookTxt').textContent = LOOK === 2 ? '1. LOOK' : '2. LOOK'; }
+function updateLookBtn() { $('lookBtn').classList.toggle('on', LOOK === 2); $('lookTxt').textContent = ''; }
 let lookBusy = false;
 $('lookBtn').onclick = async () => { // AGITÉ button: switch the whole band to the other wardrobe
   if (lookBusy || state !== 'menu') return; const next = LOOK === 2 ? 1 : 2;
@@ -1135,6 +1136,7 @@ function update(dt, t) {
   }
   menuStage.visible = false; chaser.visible = true;
   if (state === 'pause') return;
+  if (state === 'photo' && photo) { updatePhoto(dt, t); chaser.visible = false; $('vign').style.opacity = 0; sky.position.copy(camera.position); crowdTime.value = t; crowdTick(t); updateHUD(); updateLyrics(); return; }
   if (state === 'gig') { // concert: band on stage, camera in the crowd
     updateGig(dt, t);
     if (gig) {
@@ -1338,7 +1340,7 @@ function updateHUD() {
 }
 
 // ------------------------------------------------------------------ BURDAYIM complete → 10 s OD Band gig on a pop-up stage
-const GIG_LEN = 10;
+const GIG_LEN = 15;
 const GIG_VIDEO = 'video/klip.mp4'; // şu an: OD Band – Kanada (Official Video). Burdayım klibi çıkınca bu dosyayı değiştir.
 const gigVideo = Object.assign(document.createElement('video'), { src: GIG_VIDEO, muted: true, loop: true, playsInline: true, preload: 'auto', crossOrigin: 'anonymous' });
 gigVideo.setAttribute('playsinline', ''); gigVideo.setAttribute('muted', '');
@@ -1433,12 +1435,13 @@ function gigAudience(s0) {
 }
 // cinematic camera: shots relative to the stage front (s offset, lat, height) → look target
 const GIG_SHOTS = [
-  { t: 0, from: [-16, 0, 4.4], to: [-10, 0, 3.4], look: [1.5, 0, 2.2] },      // wide, dolly in over the crowd
-  { t: 3, from: [-7, -.4, 2.6], to: [-4.6, -.2, 2.3], look: [1, 0, 2.1] },   // push in toward the stage
-  { t: 5.2, from: [-2.4, -2.0, 2.3], to: [-1.9, -1.4, 2.2], look: [.9, -.3, 2.35] }, // three-quarter so the mic doesn't cover her face // Güneş close-up
-  { t: 6.8, from: [-2.2, 4.4, 2.7], to: [-1.4, 3.4, 2.5], look: [2.6, 1.9, 1.9] },  // drums, from the front-right
-  { t: 8.3, from: [-3.0, -5.2, 2.6], to: [-2.4, -3.4, 2.4], look: [1.3, -3.4, 2.0] }, // guitarists, tracking in front of the stage (clear of the side speakers)
-  { t: 9.8, from: [-5, 0, 2.3], to: [-13, 0, 5.8], look: [1.5, 0, 2.6] },     // crane out
+  { t: 0, from: [-16, 0, 4.4], to: [-10, 0, 3.4], look: [1.5, 0, 2.2] },          // wide, dolly in over the crowd
+  { t: 3, from: [-7, -.4, 2.6], to: [-4.6, -.2, 2.3], look: [1, 0, 2.1] },        // push in toward the stage
+  { t: 5.5, from: [-2.4, -2.0, 2.3], to: [-1.9, -1.4, 2.2], look: [.9, -.3, 2.35] }, // Güneş, three-quarter so the mic doesn't hide her
+  { t: 7.5, from: [-2.2, 4.4, 2.7], to: [-1.4, 3.4, 2.5], look: [2.6, 1.9, 1.9] },  // Eylül on drums
+  { t: 9.5, from: [-3.0, -5.2, 2.6], to: [-2.4, -3.4, 2.4], look: [1.3, -3.4, 2.0] }, // Öykü + Sude, tracking in front of the stage
+  { t: 11.5, from: [-1.3, .8, 3.0], to: [-.9, 2.0, 2.8], look: [1.4, 3.9, 2.0] }, // Umay on bass, from the stage lip above the crowd (portrait wides cut her off)
+  { t: 13.5, from: [-5, 0, 2.3], to: [-13, 0, 5.8], look: [1.5, 0, 2.6] },        // crane out
 ];
 function gigCamera(dt, t) {
   const T0 = gig.t; let k = 0; while (k < GIG_SHOTS.length - 1 && T0 >= GIG_SHOTS[k + 1].t) k++;
@@ -1449,8 +1452,8 @@ function gigCamera(dt, t) {
   const p = segPoint(seg, gig.s0 + so * wide, la, tmp).setY(hh), lk = segPoint(seg, gig.s0 + sh.look[0], sh.look[1], tmp2).setY(sh.look[2]);
   p.x += Math.sin(t * 1.7) * .04; p.y += Math.sin(t * 2.3) * .03; // handheld feel
   const cut = gig.lastShot !== k; gig.lastShot = k;
-  if (cut && k > 0 && k !== 1 && k !== 5) camera.position.copy(p); else camera.position.lerp(p, Math.min(1, dt * 4));
-  gig.look = cut && k > 0 && k !== 1 && k !== 5 ? lk.clone() : (gig.look || lk.clone()).lerp(lk, Math.min(1, dt * 5));
+  if (cut && k > 0 && k !== 1 && k !== 6) camera.position.copy(p); else camera.position.lerp(p, Math.min(1, dt * 4));
+  gig.look = cut && k > 0 && k !== 1 && k !== 6 ? lk.clone() : (gig.look || lk.clone()).lerp(lk, Math.min(1, dt * 5));
   camera.lookAt(gig.look);
 }
 function canStartGig() { return seg.len - s > 46 && s > 6; }
@@ -1506,7 +1509,7 @@ function updateGig(dt, t) {
     stageLights[0].position.copy(segPoint(seg, gig.s0 + 1.5, -3.5 + Math.sin(t * 1.3) * 2, tmp2)).setY(4.5); stageLights[0].intensity = 18 * k;
     stageLights[1].position.copy(segPoint(seg, gig.s0 + 1.5, 3.5 + Math.sin(t * 1.1 + 2) * 2, tmp2)).setY(4.5); stageLights[1].intensity = 18 * k;
   }
-  if (T0 > GIG_LEN + 1.2) endGig();
+  if (T0 > GIG_LEN + 1.2) startPhoto();
 }
 function startPlaying(g) {
   const role = g.gig.role; g.bones = {};
@@ -1531,6 +1534,88 @@ function endGig() {
   $('hint').style.opacity = 0; showMsg('KOŞ!', 1);
 }
 
+// ------------------------------------------------------------------ after the gig: 5 fans line up for a photo with her (timing mini-game)
+// a needle sweeps a bar; tap to take the shot — the closer to the centre, the more points. The photographer (our DoP) takes the pictures.
+const PHOTO_N = 5;
+let photo = null, PHOTOG = null, captureNext = null;
+function loadPhotographer() { return new Promise(res => loader.load('models/fotografci.glb', g => { PHOTOG = prepGirl(g); res(); }, undefined, () => res())); }
+function makePerson(gltf) { // animated Quaternius fan (CC0)
+  const m = SkeletonUtils.clone(gltf.scene); const b = new THREE.Box3().setFromObject(gltf.scene); const k = 1.72 / (b.max.y - b.min.y);
+  const holder = new THREE.Group(); m.scale.setScalar(k); m.position.y = -b.min.y * k; holder.add(m); m.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  const mixer = new THREE.AnimationMixer(m), clip = n => gltf.animations.find(c => c.name.toLowerCase().includes(n));
+  const act = {}; for (const n of ['walk', 'idle', 'clapping', 'standing']) { const c = clip(n); if (c) act[n] = mixer.clipAction(c); }
+  return { holder, mixer, act, cur: null, play(n, f = .2) { const a = this.act[n] || this.act.idle; if (!a || a === this.cur) return; a.reset().fadeIn(f).play(); this.cur?.fadeOut(f); this.cur = a; } };
+}
+function startPhoto() {
+  // clear the stage, keep the chosen girl in front of it
+  for (const g of gig.band) if (g !== player) scene.remove(g.holder);
+  for (const p of gig.props) p.parent?.remove(p);
+  gigVideo.pause(); stageLights.forEach(l => l.intensity = 0);
+  const s0 = gig.s0; gig.stage.visible = true; // stage stays as the backdrop
+  state = 'photo'; flash('#ffffff', .35);
+  const spot = segPoint(seg, s0 - 2.2, -.45); player.holder.position.copy(spot); player.holder.position.y = 0;
+  const face = yawOf(seg.dir) + Math.PI; player.holder.rotation.y = face; player.inner.rotation.set(0, Math.PI, 0); playAct(player, 'idle', .3, 1);
+  let pg = null;
+  if (PHOTOG) { pg = makeGirl(-1); } else if (CROWD.raw?.[0]) { pg = makePerson(CROWD.raw[0]); }
+  if (pg) { pg.holder.position.copy(segPoint(seg, s0 - 7.2, .2)); pg.holder.rotation.y = yawOf(seg.dir); scene.add(pg.holder); if (pg.actions) playAct(pg, 'idle', 0, 1); else pg.play('idle', 0);
+    const cam = new THREE.Group(); const body = new THREE.Mesh(new THREE.BoxGeometry(.16, .11, .09), new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: .5 })); cam.add(body);
+    const lens = new THREE.Mesh(new THREE.CylinderGeometry(.04, .045, .12, 16), new THREE.MeshStandardMaterial({ color: 0x111111, roughness: .3, metalness: .5 })); lens.rotation.x = Math.PI / 2; lens.position.z = -.09; cam.add(lens);
+    cam.position.set(0, 1.62, -.22); pg.holder.add(cam); pg.cam = cam; }
+  $('hint').style.opacity = 0;
+  photo = { s0, n: 0, phase: 'walk', t: 0, fan: null, pg, total: 0, needle: 0, dir: 1, speed: 1.1, shots: [] };
+  nextFan(); $('photoUi').classList.remove('hide'); showMsg('HAYRANLAR FOTOĞRAF İSTİYOR!', 2);
+}
+function nextFan() {
+  if (photo.fan) scene.remove(photo.fan.holder);
+  if (photo.n >= PHOTO_N) return endPhoto();
+  const raw = CROWD.raw?.[photo.n % (CROWD.raw?.length || 1)];
+  const fan = raw ? makePerson(raw) : { holder: new THREE.Mesh(new THREE.CapsuleGeometry(.25, 1, 4, 8), new THREE.MeshStandardMaterial({ color: 0x5577aa })), mixer: null, play() { } };
+  if (!raw) fan.holder.position.y = .75;
+  const side = photo.n % 2 ? 1 : -1; fan.from = segPoint(seg, photo.s0 - 2.4, side * 7.5); fan.to = segPoint(seg, photo.s0 - 2.25, .45);
+  fan.holder.position.copy(fan.from); fan.holder.position.y = raw ? 0 : .75; scene.add(fan.holder); fan.play('walk', 0);
+  photo.fan = fan; photo.phase = 'walk'; photo.t = 0; photo.speed = 1.0 + photo.n * .28; photo.needle = Math.random(); photo.dir = 1;
+  $('photoBar').classList.add('dim'); $('photoCount').textContent = `${photo.n + 1} / ${PHOTO_N}`; $('photoRes').textContent = '';
+}
+function updatePhoto(dt, t) {
+  const P = photo, fan = P.fan; P.t += dt; fan.mixer?.update(dt); player.mixer?.update(dt); P.pg?.mixer?.update(dt);
+  const face = yawOf(seg.dir) + Math.PI;
+  if (P.phase === 'walk') {
+    const to = tmp2.copy(fan.to).sub(fan.holder.position); to.y = 0; const d = to.length();
+    if (d < .08) { P.phase = 'aim'; P.t = 0; fan.play('standing') || fan.play('idle'); fan.holder.rotation.y = yawOf(seg.dir); $('photoBar').classList.remove('dim'); hint(MOBILE ? 'ekrana dokun: ÇEK!' : 'boşluk / tıkla: ÇEK!', 2); }
+    else { to.normalize(); fan.holder.position.addScaledVector(to, Math.min(d, 2.6 * dt)); fan.holder.rotation.y = Math.atan2(to.x, to.z); }
+  } else if (P.phase === 'aim') {
+    P.needle += P.dir * P.speed * dt; if (P.needle > 1) { P.needle = 2 - P.needle; P.dir = -1; } if (P.needle < 0) { P.needle = -P.needle; P.dir = 1; }
+    $('photoNeedle').style.left = (P.needle * 100) + '%';
+    fan.holder.rotation.y = yawOf(seg.dir); player.holder.rotation.y = angLerp(player.holder.rotation.y, face + .25, dt * 4);
+    if (P.t > 7) shoot(); // too slow: blurry shot
+  } else if (P.phase === 'after') {
+    if (P.t > 1.0 && P.t < 1.05) { fan.play('walk'); }
+    if (P.t > 1.0) { const to = tmp2.copy(fan.from).sub(fan.holder.position); to.y = 0; const d = to.length(); if (d > .1) { to.normalize(); fan.holder.position.addScaledVector(to, Math.min(d, 3.2 * dt)); fan.holder.rotation.y = Math.atan2(to.x, to.z); } }
+    if (P.t > 2.2) { P.n++; nextFan(); }
+  }
+  // camera over the photographer's shoulder, framing her + the fan
+  const mid = segPoint(seg, P.s0 - 2.2, 0, tmp2).setY(1.3), back = segPoint(seg, P.s0 - 8.9, 1.5, tmp); back.y = 2.35;
+  camera.position.lerp(back, Math.min(1, dt * 3)); camera.lookAt(mid);
+}
+function shoot() {
+  const P = photo; if (!P || P.phase !== 'aim') return;
+  const d = Math.abs(P.needle - .5); const [pts, label] = d < .05 ? [100, 'MÜKEMMEL!'] : d < .14 ? [60, 'SÜPER'] : d < .28 ? [30, 'İYİ'] : [10, 'BULANIK'];
+  P.total += pts; score += pts; P.phase = 'after'; P.t = 0;
+  flash('#ffffff', .9); sfx(2200, .05, 'square', .06); setTimeout(() => sfx(1400, .06, 'square', .05), 70); noise(.08, .12, 5000);
+  P.fan.play('clapping'); $('photoRes').textContent = `${label} +${pts}`; $('photoBar').classList.add('dim'); buzz(40);
+  captureNext = { n: P.n + 1, pts, label };
+}
+function showPolaroid(url, info) {
+  const el = document.createElement('div'); el.className = 'polaroid'; el.style.setProperty('--r', `${rand(-8, 8)}deg`);
+  el.innerHTML = `<img src="${url}" alt=""><span>${BAND[sel].name} &amp; hayran #${info.n} · ${info.label} +${info.pts}</span>`; $('photoUi').appendChild(el);
+  setTimeout(() => el.classList.add('out'), 1600); setTimeout(() => el.remove(), 2300);
+}
+function endPhoto() {
+  const P = photo; if (P.pg) scene.remove(P.pg.holder); if (P.fan) scene.remove(P.fan.holder);
+  $('photoUi').classList.add('hide'); showMsg(`FOTOĞRAFLAR +${P.total}`, 1.6); photo = null;
+  endGig();
+}
+
 // ------------------------------------------------------------------ particles (sparkles + dust), one Points cloud
 const PMAX = 900, pPos = new Float32Array(PMAX * 3), pCol = new Float32Array(PMAX * 3), pVel = new Float32Array(PMAX * 3), pLife = new Float32Array(PMAX);
 const pGeo = new THREE.BufferGeometry(); pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3)); pGeo.setAttribute('color', new THREE.BufferAttribute(pCol, 3));
@@ -1553,12 +1638,24 @@ function adaptResolution(dt) {
     const next = fps < 45 ? Math.min(prLevel + 1, PR_STEPS.length - 1) : fps > 58 ? Math.max(prLevel - 1, 0) : prLevel;
     if (next !== prLevel) { prLevel = next; const pr = Math.min(devicePixelRatio, PR_STEPS[prLevel]); renderer.setPixelRatio(pr); composer.setPixelRatio(pr); composer.setSize(innerWidth, innerHeight); } }
 }
+// ------------------------------------------------------------------ lyrics (forced-aligned to the vocal stem, assets/burdayim_sozler.json)
+let LYR = [], lyrKey = '';
+function loadLyrics() { fetch('assets/burdayim_sozler.json').then(r => r.json()).then(j => LYR = j).catch(() => { }); }
+function updateLyrics() {
+  const el = $('lyric'); if (!el) return;
+  if (!LYR.length || state === 'menu' || state === 'over' || songIdx !== 0) { if (lyrKey) { el.classList.remove('show'); lyrKey = ''; } return; }
+  const ct = songTime(); const L = LYR.find(l => ct >= l.s - .25 && ct <= l.e + .9);
+  if (!L) { if (lyrKey) { el.classList.remove('show'); lyrKey = ''; } return; }
+  const k = L.w.filter(w => w.s <= ct).length, key = L.s + ':' + k; if (key === lyrKey) return; lyrKey = key;
+  el.innerHTML = L.w.map((w, i) => `<span class="${i < k ? 'on' : ''}">${w.w}</span>`).join(' '); el.classList.add('show');
+}
 // ------------------------------------------------------------------ main loop
 function frame() {
   const dt = Math.min(.05, clock.getDelta()), t = clock.elapsedTime;
-  if (state !== 'loading') { update(dt, t); updateParticles(dt); adaptResolution(dt); }
+  if (state !== 'loading') { update(dt, t); updateParticles(dt); adaptResolution(dt); updateLyrics(); }
   if (state === 'run') { const f = (camera.aspect < .8 ? 70 : 58) + (speed - 13) * .45; if (Math.abs(camera.fov - f) > .05) { camera.fov += (f - camera.fov) * Math.min(1, dt * 2); camera.updateProjectionMatrix(); } }
   composer.render();
+  if (captureNext) { try { showPolaroid(renderer.domElement.toDataURL('image/jpeg', .72), captureNext); } catch (e) { } captureNext = null; }
   requestAnimationFrame(frame);
 }
 
@@ -1567,14 +1664,14 @@ function frame() {
   setWorld('beach', true);
   requestAnimationFrame(frame);
   await withTimeout(document.fonts.ready, 3000);
-  const propsP = loadProps(); loadCrowdModels(); const envP = loadEnv();
+  const propsP = loadProps(); loadCrowdModels(); loadPhotographer(); loadLyrics(); const envP = loadEnv();
   await loadGirls(p => { $('lbar').style.width = (p * 100) + '%'; $('ltxt').textContent = `karakterler yükleniyor… ${Math.round(p * 100)}%`; });
   if (LOOK === 2 && !LOOK_TPL[2].some(Boolean)) { LOOK = 1; girlTemplates = LOOK_TPL[1]; localStorage.setItem('od3_look', '1'); buildFaces(); updateLookBtn(); await loadGirls(p => { $('lbar').style.width = (p * 100) + '%'; }); }
   await withTimeout(Promise.all([envP, propsP]), 8000);
   $('loading').classList.add('hide');
   if (params.has('sel')) sel = +params.get('sel');
   toMenu();
-  if (params.has('run')) { if (params.get('run')) sel = +params.get('run'); startRun(); if (params.has('sim')) { const n = +params.get('sim'); for (let i = 0; i < n && state === 'run'; i++) { if (params.has('auto')) autopilot(); if (i === n - 12 && params.has('jump')) act('up'); if (i === n - 20 && params.has('slide')) act('down'); update(1 / 60, i / 60); } if (params.has('gig')) { startGig(); for (let i = 0; i < +params.get('gig'); i++) update(1 / 60, i / 60); } if (params.has('down')) { gameOver('Test'); for (let i = 0; i < +params.get('down'); i++) update(1 / 60, i / 60); } const d = document.createElement('div'); d.style.cssText = 'position:fixed;top:120px;left:10px;font:14px monospace;background:#000a;padding:6px;z-index:99'; d.textContent = `state=${state} segI=${segI} s=${s.toFixed(1)} len=${seg.len} turn=${seg.turn} turnQ=${turnQ} lane=${lane} lat=${lat.toFixed(2)} dist=${dist.toFixed(0)} reason=${$('overLine').textContent}`; document.body.appendChild(d); } }
+  if (params.has('run')) { if (params.get('run')) sel = +params.get('run'); startRun(); if (params.has('sim')) { const n = +params.get('sim'); for (let i = 0; i < n && state === 'run'; i++) { if (params.has('auto')) autopilot(); if (i === n - 12 && params.has('jump')) act('up'); if (i === n - 20 && params.has('slide')) act('down'); update(1 / 60, i / 60); } if (params.has('gig')) { startGig(); for (let i = 0; i < +params.get('gig'); i++) update(1 / 60, i / 60); if (params.has('pshoot') && photo) { photo.needle = .5; shoot(); } } if (params.has('down')) { gameOver('Test'); for (let i = 0; i < +params.get('down'); i++) update(1 / 60, i / 60); } const d = document.createElement('div'); d.style.cssText = 'position:fixed;top:120px;left:10px;font:14px monospace;background:#000a;padding:6px;z-index:99'; d.textContent = `state=${state} segI=${segI} s=${s.toFixed(1)} len=${seg.len} turn=${seg.turn} turnQ=${turnQ} lane=${lane} lat=${lat.toFixed(2)} dist=${dist.toFixed(0)} reason=${$('overLine').textContent}`; document.body.appendChild(d); } }
 })();
 
 function autopilot() {
