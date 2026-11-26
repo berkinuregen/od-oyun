@@ -898,7 +898,7 @@ function coin(seg, s, lane, y) {
 }
 function powerup(seg, s, lane, kind) {
   const g = new THREE.Group();
-  if (kind === 'mod') { const d = modDisc(.55); d.rotation.x = Math.PI / 2; g.add(d); }
+  if (kind === 'mod') { const d = modDisc(.55); d.rotation.y = params.has('poff') ? +params.get('poff') : Math.PI / 2; const w = new THREE.Group(); w.rotation.x = Math.PI / 2; w.add(d); g.add(w); }
   else if (kind === 'sun') {
     const core = new THREE.Mesh(G.sphere, new THREE.MeshBasicMaterial({ color: 0xffd36b })); core.scale.setScalar(.38); g.add(core);
     for (let i = 0; i < 10; i++) { const r = new THREE.Mesh(new THREE.ConeGeometry(.08, .35, 6), new THREE.MeshBasicMaterial({ color: 0xffa83a })); const a = i / 10 * Math.PI * 2; r.position.set(Math.cos(a) * .55, Math.sin(a) * .55, 0); r.rotation.z = a - Math.PI / 2; g.add(r); }
@@ -1349,7 +1349,7 @@ function update(dt, t) {
   // place player
   segPoint(seg, s, lat, tmp); player.holder.position.set(tmp.x, py, tmp.z);
   if (!flyBoard.parent) scene.add(flyBoard);
-  flyBoard.visible = state === 'run' && flyT > 0; if (flyBoard.visible) { flyBoard.position.copy(player.holder.position); flyBoard.position.y = py - .05; flyBoard.rotation.y += dt * 9; const tilt = Math.sin(t * 5) * .06; flyBoard.rotation.x = tilt; if (Math.random() < .6) emit(flyBoard.position, pick([0xf7c41f, 0xffffff, 0xffe27a]), rand(-1, 1), rand(-2, -.5), rand(-1, 1), rand(.3, .6)); }
+  flyBoard.visible = state === 'run' && flyT > 0; if (flyBoard.visible) { flyBoard.position.copy(player.holder.position); flyBoard.position.y = py - .05; flyBoard.rotation.y = player.holder.rotation.y + (params.has('boff') ? +params.get('boff') : Math.PI / 2) + Math.sin(t * 1.5) * .12; const tilt = Math.sin(t * 5) * .06; flyBoard.rotation.x = tilt; if (Math.random() < .6) emit(flyBoard.position, pick([0xf7c41f, 0xffffff, 0xffe27a]), rand(-1, 1), rand(-2, -.5), rand(-1, 1), rand(.3, .6)); }
   const targetYaw = yawOf(seg.dir);
   if (state === 'run' || downT < 5.6) player.holder.rotation.y = angLerp(player.holder.rotation.y, targetYaw, Math.min(1, dt * 14));
   // lean while changing lanes
@@ -1410,7 +1410,8 @@ function update(dt, t) {
     const m = o.mesh; if (!m || !m.parent) continue;
     if (o.t !== 'deco' && sg === seg && o.s < s - (o.t === 'high' || o.t === 'low' || o.t === 'block' ? .3 : 1.2) && m.visible) { m.visible = false; continue; } // passed: never let the camera clip through it
     if (o.t === 'coin') m.rotation.y += dt * 4;
-    else if (o.t === 'sun' || o.t === 'mic' || o.t === 'mod') { m.rotation.y += dt * 2; m.position.y = o.y + Math.sin(t * 3 + o.s) * .15; }
+    else if (o.t === 'mod') { m.rotation.y = Math.sin(t * 1.2 + o.s) * .25; m.position.y = o.y + Math.sin(t * 3 + o.s) * .15; }
+    else if (o.t === 'sun' || o.t === 'mic') { m.rotation.y += dt * 2; m.position.y = o.y + Math.sin(t * 3 + o.s) * .15; }
     else if (o.t === 'letter') m.position.y = o.y + Math.sin(t * 3 + o.s) * .12;
     else if (o.beam) { const u = m.userData; m.rotation.z = Math.sin(t * u.sp + u.ph) * .45; m.rotation.x = Math.PI + Math.sin(t * u.sp * .7 + u.ph) * .3; }
     else if (o.t === 'deco') m.position.y += Math.sin(t * 1.5 + m.userData.float) * .004;
@@ -1451,7 +1452,7 @@ function collect(o) {
   o.done = true; o.mesh.getWorldPosition(tmp2); burst(tmp2, o.t === 'coin' ? 0xffd36b : o.t === 'letter' ? 0xffffff : 0xffb040, o.t === 'coin' ? 10 : 22); o.mesh.parent?.remove(o.mesh);
   if (o.t === 'coin') { picks++; score += 10 * mult; sfx(1250 + (picks % 6) * 70, .06, 'square', .03); }
   else if (o.t === 'sun') { sunT = 6; gap = 1; flash('#ffd36b', .55); showMsg('BİR GÜNEŞ DOĞAR…', 1.8); sfx(523, .4, 'sine', .08, 520); setTimeout(() => sfx(784, .5, 'sine', .07, 300), 120); }
-  else if (o.t === 'mod') { flyT = 5; magnet = Math.max(magnet, 5); vy = 0; sliding = false; flash('#f7c41f', .5); showMsg('MODUNDAYIZ! UÇ!', 1.6); buzz(60); sfx(392, .5, 'sawtooth', .05, 900); setTimeout(() => sfx(784, .4, 'triangle', .06, 400), 140); }
+  else if (o.t === 'mod') { flyT = 5; magnet = Math.max(magnet, 5); vy = 0; sliding = false; flash('#f7c41f', .5); showMsg('MODUNDASIN!', 1.8); buzz(60); sfx(392, .5, 'sawtooth', .05, 900); setTimeout(() => sfx(784, .4, 'triangle', .06, 400), 140); }
   else if (o.t === 'mic') { magnet = 9; showMsg('MİKROFON!', 1.2); sfx(880, .35, 'sawtooth', .04, 700); }
   else if (o.t === 'letter') {
     const word = [...SONGS[songIdx].word];
