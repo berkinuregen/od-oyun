@@ -487,7 +487,7 @@ function gate(seg, from, to, s) {
   const sign = (text, bg, fg, y, w = 4.2, h = 1.05) => { const p = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map: signTex(text, bg, fg), side: THREE.DoubleSide })); p.position.set(0, y, .37); g.add(p); const p2 = p.clone(); p2.position.z = -.37; g.add(p2); };
   if (to === 'stone') { pillar(M2.stoneEdge, -H - .9, 4.8); pillar(M2.stoneEdge, H + .9, 4.8); beam(M2.stoneEdge, 4.9, .8); sign('YAZLIKLAR', '#f4ede2', '#3f6f7a', 4.9); for (const x of [-H - .9, H + .9]) { const b = new THREE.Mesh(G2.ico, M2.bougain); b.scale.setScalar(.9); b.position.set(x, 5.2, 0); g.add(b); } }
   else if (to === 'beach') { pillar(M2.palm, -H - .7, 4.2, .3); pillar(M2.palm, H + .7, 4.2, .3); beam(M2.palm, 4.25, .3); sign('PLAJ ☀', '#3a8fc4', '#fff6e6', 3.7, 3.4, .95); palm(seg, s + 1.5, -H - 2.6); palm(seg, s + 1.5, H + 2.6); }
-  else if (to === 'concert') { pillar(M.metal, -H - .8, 5.2, .45); pillar(M.metal, H + .8, 5.2, .45); beam(M.metal, 5.3, .45); sign('OD BAND · BURDAYIM KONSERİ', '#c4142c', '#ffffff', 4.5, 6.6, 1.1); const lg = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 2.0), new THREE.MeshBasicMaterial({ map: T.logoRed, transparent: true, side: THREE.DoubleSide, alphaTest: .05 })); lg.position.set(0, 6.6, .4); g.add(lg);
+  else if (to === 'concert') { pillar(M.metal, -H - .8, 5.2, .45); pillar(M.metal, H + .8, 5.2, .45); beam(M.metal, 5.3, .45); sign('OD BAND · BURDAYIM KONSERİ', '#c4142c', '#ffffff', 4.5, 6.6, 1.1); const lg = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 2.0), new THREE.MeshBasicMaterial({ map: T.logoRed, transparent: true, side: THREE.DoubleSide, alphaTest: .05 , fog: false, toneMapped: false })); lg.position.set(0, 6.6, .4); g.add(lg);
     for (let i = 0; i < 9; i++) { const b = new THREE.Mesh(G.sphere, M2.ledBulb); b.scale.setScalar(.09); b.position.set(-H - .8 + i * (ROAD_W + 1.6) / 8, 5.62, .25); g.add(b); } }
   else return;
   put(seg, g, s, 0, 0);
@@ -619,10 +619,10 @@ function lightTower(seg, s, lat) {
 function stageAt(seg, s) { // the big stage that closes every concert corner
   const g = new THREE.Group(); const W = ROAD_W + 9;
   const deck = new THREE.Mesh(G.box, M.caseSide); deck.scale.set(W, 1.3, 6); deck.position.set(0, .65, -2.2); g.add(deck);
-  const screen = new THREE.Mesh(new THREE.PlaneGeometry(W - 3, 4.2), new THREE.MeshBasicMaterial({ map: T.screen, toneMapped: false, color: 0xcccccc })); screen.position.set(0, 4.2, -4.6); g.add(screen);
+  const screen = new THREE.Mesh(new THREE.PlaneGeometry(W - 3, 4.2), new THREE.MeshBasicMaterial({ map: T.screen, toneMapped: false, fog: false, color: 0xcccccc })); screen.position.set(0, 4.2, -4.6); g.add(screen);
   for (const x of [-W / 2 + .8, W / 2 - .8]) { const sp = new THREE.Mesh(G.box, M.ampSide); sp.scale.set(1.4, 5.5, 1.2); sp.position.set(x, 4, -1); g.add(sp); const tw = new THREE.Mesh(G.box, M.metal); tw.scale.set(.3, 8, .3); tw.position.set(x, 4, -4.8); g.add(tw); }
   const roof = new THREE.Mesh(G.box, M.metal); roof.scale.set(W, .35, .35); roof.position.set(0, 7.9, -1.5); g.add(roof);
-  const lg = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 3.26), new THREE.MeshBasicMaterial({ map: T.logoRed, transparent: true, alphaTest: .05, side: THREE.DoubleSide })); lg.position.set(0, 9.8, -1.5); g.add(lg);
+  const lg = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 3.26), new THREE.MeshBasicMaterial({ map: T.logoRed, transparent: true, alphaTest: .05, side: THREE.DoubleSide , fog: false, toneMapped: false })); lg.position.set(0, 9.8, -1.5); g.add(lg);
   for (let i = 0; i < 8; i++) { const b = new THREE.Mesh(G.sphere, M2.ledBulb); b.scale.setScalar(.14); b.position.set(-W / 2 + 1 + i * (W - 2) / 7, 7.6, -1.3); g.add(b); }
   g.traverse(o => { if (o.isMesh) o.castShadow = true; });
   put(seg, g, s, 0, 0);
@@ -1071,6 +1071,7 @@ const camPos = new THREE.Vector3(), camLook = new THREE.Vector3(), tmp = new THR
 
 // ------------------------------------------------------------------ audio
 const songs = SONGS.map(sg => { const a = new Audio(sg.file); a.preload = 'auto'; a.volume = .8; return a; });
+songs.forEach(a => { a.loop = true; }); // Burdayım plays on repeat
 songs.forEach((a, i) => a.addEventListener('ended', () => { if (state === 'run' || state === 'gig') nextSong(); else if (state === 'pause') songEndedInPause = true; }));
 let songEndedInPause = false;
 let AC = null;
@@ -1587,7 +1588,7 @@ function gigStage() {
   const screen = new THREE.Mesh(new THREE.PlaneGeometry(9.0, 5.06), new THREE.MeshBasicMaterial({ map: gigVideo.readyState >= 2 ? gigVideoTex : T.screen, toneMapped: false })); screen.position.set(0, 3.75, -D - .1); g.add(screen); g.userData.screen = screen;
   for (const x of [-W / 2 - .2, W / 2 + .2]) { const sp = new THREE.Mesh(new THREE.BoxGeometry(1.2, 3.4, 1), [M.ampSide, M.ampSide, M.ampSide, M.ampSide, M.amp, M.ampSide]); sp.position.set(x, 1.7, -1.2); sp.castShadow = true; g.add(sp); }
   const roof = new THREE.Mesh(G.box, M.metal); roof.scale.set(W + 1, .3, .3); roof.position.set(0, 6.9, -.6); g.add(roof);
-  const lg = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 3.08), new THREE.MeshBasicMaterial({ map: T.logoRed, transparent: true, alphaTest: .05, side: THREE.DoubleSide })); lg.position.set(0, 8.7, -.6); g.add(lg);
+  const lg = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 3.08), new THREE.MeshBasicMaterial({ map: T.logoRed, transparent: true, alphaTest: .05, side: THREE.DoubleSide , fog: false, toneMapped: false })); lg.position.set(0, 8.7, -.6); g.add(lg);
   const skTex = T.od.clone(); skTex.wrapS = THREE.RepeatWrapping; skTex.repeat.set(Math.max(1, Math.round(W / .9 / (512 / 160))), 1); skTex.needsUpdate = true; // tile the banner instead of stretching it
   const skirt = new THREE.Mesh(new THREE.PlaneGeometry(W, .9), new THREE.MeshStandardMaterial({ map: skTex })); skirt.position.set(0, .45, .01); g.add(skirt);
   for (const x of [-W / 2 - .2, W / 2 + .2]) { const p = new THREE.Mesh(G.box, M.metal); p.scale.set(.25, 6.9, .25); p.position.set(x, 3.45, -.6); g.add(p); }
