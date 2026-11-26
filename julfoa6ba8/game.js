@@ -389,14 +389,17 @@ function buildSegment(seg, first) {
 function worldAt(seg, s) { return seg.from && s < seg.mid ? seg.from : seg.world; }
 
 // builds road, ground and scenery of world `w` for the stretch a..b of a segment
+const _layerMats = new Map(), seaClones = [];
+function layered(mat, L) { const k = mat.uuid + ':' + L; let m = _layerMats.get(k); if (!m) { m = mat.clone(); m.polygonOffset = true; m.polygonOffsetFactor = 1 + L; m.polygonOffsetUnits = 6 * (1 + L); _layerMats.set(k, m); if (mat === M2.water) seaClones.push(m); } return m; }
 function buildPart(seg, w, a, b, isStart, isEnd) {
-  const H = ROAD_W / 2, gy = seg.gy; if (!params.has('nofill')) fillLand(seg, w, a, b);
+  const L = (seg.n % 4) * 2 + (isStart ? 0 : 1), LM = m => layered(m, L);
+  const H = ROAD_W / 2, gy = seg.gy - (isStart ? 0 : .003); if (!params.has('nofill')) fillLand(seg, w, a, b);
   const ga = isStart ? a - 4 : a, gb = isEnd ? b + 30 : b; // ground extends past the ends
   const inPart = s => s >= a + 1 && s <= b - 1 && s > 9 && s < seg.len - 9; // also keep corners clear
   const range = (start, step, fn) => { for (let s = a + start; s < b; s += step()) if (inPart(s)) fn(s); };
   if (w === 'green') {
     strip(seg, M2.dirt, a, b, -H, H, 0, ROAD_W, 7);
-    strip(seg, M2.grass, ga, gb, -160, 160, gy, 8);
+    strip(seg, LM(M2.grass), ga, gb, -160, 160, gy, 8);
     for (const side of [-1, 1]) {
       range(rand(2, 6), () => rand(3.5, 7), s => {
         tree(seg, s, side * rand(H + 3, H + 9));
@@ -409,7 +412,7 @@ function buildPart(seg, w, a, b, isStart, isEnd) {
     }
   } else if (w === 'stone') {
     strip(seg, M2.cobble, a, b, -H, H, 0, 3);
-    strip(seg, M2.paving, ga, gb, -160, 160, gy, 4);
+    strip(seg, LM(M2.paving), ga, gb, -160, 160, gy, 4);
     for (const side of [-1, 1]) {
       const ca = Math.max(a, 9), cb = Math.min(b, seg.len - 9);
       if (cb > ca) { const curb = new THREE.Mesh(G.box, M2.stoneEdge); curb.scale.set(1.4, .14, cb - ca); put(seg, curb, (ca + cb) / 2, side * (H + .7), .07); curb.receiveShadow = true; }
@@ -419,9 +422,9 @@ function buildPart(seg, w, a, b, isStart, isEnd) {
     range(rand(8, 20), () => rand(18, 30), s => overheadLine(seg, s));
   } else if (w === 'beach') {
     strip(seg, M2.sandRoad, a, b, -H, H, 0, ROAD_W, 7);
-    strip(seg, M2.sand, ga, gb, -16, 160, gy, 6);
-    strip(seg, M2.water, ga, gb, -230, -15, -.012, 14);
-    strip(seg, M2.foam, ga, gb, -16.6, -14.6, -.008, 2, 4);
+    strip(seg, LM(M2.sand), ga, gb, -16, 160, gy, 6);
+    strip(seg, LM(M2.water), ga, gb, -230, -15, -.012, 14);
+    strip(seg, LM(M2.foam), ga, gb, -16.6, -14.6, -.008, 2, 4);
     range(rand(2, 8), () => rand(7, 13), s => {
       const r = Math.random();
       if (r < .35) palm(seg, s, Math.random() < .5 ? rand(H + 5, H + 8) : -rand(H + 5, H + 8));
@@ -432,7 +435,7 @@ function buildPart(seg, w, a, b, isStart, isEnd) {
     });
   } else if (w === 'concert') {
     strip(seg, M2.stage, a, b, -H, H, 0, ROAD_W, 4);
-    strip(seg, M2.grassDark, ga, gb, -160, 160, gy, 8);
+    strip(seg, LM(M2.grassDark), ga, gb, -160, 160, gy, 8);
     for (const side of [-1, 1]) {
       const led = new THREE.Mesh(G.box, side < 0 ? M2.ledA : M2.ledB); led.scale.set(.06, .04, b - a); put(seg, led, (a + b) / 2, side * (H - .05), .03);
       const ca = Math.max(a, 9), cb = Math.min(b, seg.len - 9);
@@ -442,7 +445,7 @@ function buildPart(seg, w, a, b, isStart, isEnd) {
     }
   } else { // night
     strip(seg, M2.asphalt, a, b, -H, H, 0, ROAD_W, 12);
-    strip(seg, M2.nightGround, ga, gb, -160, 160, gy, 8);
+    strip(seg, LM(M2.nightGround), ga, gb, -160, 160, gy, 8);
     for (const side of [-1, 1]) {
       const curb = new THREE.Mesh(G.box, side < 0 ? M.neonPink : M.neonCyan); curb.scale.set(.12, .12, b - a); put(seg, curb, (a + b) / 2, side * (H + .05), .05);
       for (let s = Math.max(a, 8); s < Math.min(b, seg.len - 10); s += rand(9, 15)) {
@@ -1090,6 +1093,7 @@ function applyWorld(name, k = 1) {
   const tint = c(name === 'beach' ? 0xffd2c0 : 0xffffff, name === 'concert' ? 0x8a6ab8 : name === 'beach' ? 0xffc2b0 : 0xffffff);
   clouds.children.forEach(sp => { sp.material.opacity = ca * .85; sp.material.color.copy(tint); }); clouds.visible = ca > .02;
   fill.intensity = lerp(from.fill ?? .5, W.fill, k); seaMat.specular.copy(c(from.spec ?? 0xffd0a0, W.spec));
+  for (const m of seaClones) { m.color.copy(M2.water.color); m.specular.copy(M2.water.specular); }
 }
 let worldFade = null;
 function setWorld(name, instant) {
@@ -1825,9 +1829,32 @@ const pCloud = new THREE.Points(pGeo, new THREE.PointsMaterial({ size: .22, map:
 let pNext = 0; const _pc = new THREE.Color();
 function emit(p, col, vx, vy, vz, life) { const i = pNext; pNext = (pNext + 1) % PMAX; pPos.set([p.x, p.y, p.z], i * 3); _pc.set(col); pCol.set([_pc.r, _pc.g, _pc.b], i * 3); pVel.set([vx, vy, vz], i * 3); pLife[i] = life; }
 function burst(p, col, n) { for (let k = 0; k < n; k++) emit(p, col, rand(-3, 3), rand(1, 5), rand(-3, 3), rand(.35, .7)); }
-let dustT = 0;
+let dustT = 0, stepPh = 0, stepFoot = 1;
+const SMAX = 700, sPos = new Float32Array(SMAX * 3), sCol = new Float32Array(SMAX * 3), sVel = new Float32Array(SMAX * 3), sLife = new Float32Array(SMAX), sGrav = new Float32Array(SMAX); let sNext = 0;
+const sGeo = new THREE.BufferGeometry(); sGeo.setAttribute('position', new THREE.BufferAttribute(sPos, 3)); sGeo.setAttribute('color', new THREE.BufferAttribute(sCol, 3));
+const dotTex = canvasTex(64, 64, (g) => { const r = g.createRadialGradient(32, 32, 0, 32, 32, 30); r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(.55, 'rgba(255,255,255,.85)'); r.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = r; g.fillRect(0, 0, 64, 64); });
+const sCloud = new THREE.Points(sGeo, new THREE.PointsMaterial({ size: .21, map: dotTex, vertexColors: true, transparent: true, depthWrite: false, alphaTest: .04 })); sCloud.frustumCulled = false; scene.add(sCloud);
+for (let i = 0; i < SMAX; i++) sPos[i * 3 + 1] = -99;
+function sEmit(x, y, z, col, vx, vy, vz, life, grav) { const i = sNext; sNext = (sNext + 1) % SMAX; sPos.set([x, y, z], i * 3); _pc.set(col); sCol.set([_pc.r, _pc.g, _pc.b], i * 3); sVel.set([vx, vy, vz], i * 3); sLife[i] = life; sGrav[i] = grav; }
+const STEP_FX = {
+  green: { cols: [0x5d9a36, 0x7fbf4d, 0x3e7428, 0x9a7a52], extra: [0xffd6e8, 0xfff08a], n: 7, up: [1.2, 2.6], spread: .9, back: 1.4, grav: 7, life: [.35, .6] },   // grass bits, now and then a petal
+  stone: { cols: [0xc9c2b8, 0xb3aba0, 0xd8d2c8], extra: [0x6e665e], n: 6, up: [.3, .9], spread: .6, back: .6, grav: 1.2, life: [.45, .8] },                 // dusty puff, a pebble
+  beach: { cols: [0xead0a2, 0xdcbb84, 0xf3dcb4], extra: [0xffffff], n: 9, up: [1.4, 3.0], spread: 1.1, back: 2.2, grav: 9, life: [.3, .55] },              // sand spray
+  concert: { cols: [0xff4fa3, 0x4de1ff, 0xffd23a, 0xa66bff], extra: [0xffffff], n: 6, up: [.8, 2.0], spread: 1.2, back: .8, grav: 4, life: [.4, .7], glow: true }, // glitter
+  night: { cols: [0xff3d9a, 0x4de1ff], extra: [0xffffff], n: 5, up: [.6, 1.4], spread: .8, back: .6, grav: 3, life: [.35, .6], glow: true },
+};
+function footstep() {
+  const w = worldAt(seg, s), fx = STEP_FX[w] || STEP_FX.stone, d = DIRS[seg.dir], r = DIRS[(seg.dir + 1) % 4], p = player.holder.position;
+  stepFoot = -stepFoot; const x = p.x + r[0] * .14 * stepFoot, z = p.z + r[1] * .14 * stepFoot;
+  for (let k = 0; k < Math.round(fx.n * 1.6); k++) { const col = Math.random() < .12 ? pick(fx.extra) : pick(fx.cols), sp = rand(-fx.spread, fx.spread), bk = rand(.2, 1) * fx.back;
+    const vx = r[0] * sp - d[0] * bk, vz = r[1] * sp - d[1] * bk, vy = rand(fx.up[0], fx.up[1]);
+    if (fx.glow) emit(tmp2.set(x, .1, z), col, vx, vy, vz, rand(fx.life[0], fx.life[1])); else sEmit(x + rand(-.05, .05), .05, z + rand(-.05, .05), col, vx, vy, vz, rand(fx.life[0], fx.life[1]), fx.grav); }
+}
 function updateParticles(dt) {
-  if (state === 'run' && py === 0 && player) { dustT -= dt; if (dustT <= 0) { dustT = .05; const p = player.holder.position, c = { green: 0x9a7a52, stone: 0x8a8278, beach: 0xe2bf92, concert: 0x555060, night: 0x333044 }[worldAt(seg, s)] || 0x888888; emit(tmp2.set(p.x + rand(-.2, .2), .08, p.z + rand(-.2, .2)), c, rand(-.4, .4), rand(.4, 1), rand(-.4, .4), .45); } }
+  if (state === 'run' && player) { const ra = player.actions.run; if (ra && player.cur === ra && py === 0 && !sliding) { const ph = (ra.time / ra.getClip().duration) % 1; const h0 = stepPh < .5, h1 = ph < .5; if (h0 !== h1) footstep(); stepPh = ph; } }
+  for (let i = 0; i < SMAX; i++) { if (sLife[i] <= 0) { if (sPos[i * 3 + 1] > -50) sPos[i * 3 + 1] = -99; continue; } sLife[i] -= dt; sVel[i * 3 + 1] -= sGrav[i] * dt; const drag = 1 - Math.min(1, dt * 1.8); sVel[i * 3] *= drag; sVel[i * 3 + 2] *= drag;
+    sPos[i * 3] += sVel[i * 3] * dt; sPos[i * 3 + 1] = Math.max(.02, sPos[i * 3 + 1] + sVel[i * 3 + 1] * dt); sPos[i * 3 + 2] += sVel[i * 3 + 2] * dt; if (sLife[i] <= 0) sPos[i * 3 + 1] = -99; }
+  sGeo.attributes.position.needsUpdate = true; sGeo.attributes.color.needsUpdate = true;
   for (let i = 0; i < PMAX; i++) { if (pLife[i] <= 0) { pPos[i * 3 + 1] = -99; continue; } pLife[i] -= dt; pVel[i * 3 + 1] -= 9 * dt;
     pPos[i * 3] += pVel[i * 3] * dt; pPos[i * 3 + 1] += pVel[i * 3 + 1] * dt; pPos[i * 3 + 2] += pVel[i * 3 + 2] * dt; const f = Math.max(0, pLife[i]) * 1.6; pCol[i * 3] *= .985; pCol[i * 3 + 1] *= .985; pCol[i * 3 + 2] *= .985; }
   pGeo.attributes.position.needsUpdate = true; pGeo.attributes.color.needsUpdate = true;
