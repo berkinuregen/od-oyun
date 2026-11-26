@@ -10,6 +10,12 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OD Burdayım">
+<meta name="description" content="OD Band'in Burdayım oyunu: grubun kızlarıyla gölgeden kaç, BURDAYIM harflerini topla, sahneye çık.">
+<meta property="og:type" content="website"><meta property="og:url" content="https://odband.love/">
+<meta property="og:title" content="OD Band — Burdayım"><meta property="og:description" content="Grubun kızlarıyla gölgeden kaç, BURDAYIM'ı topla, sahneye çık. Şimdi oyna!">
+<meta property="og:image" content="https://odband.love/julfoa6ba8/assets/og.jpg"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="https://odband.love/julfoa6ba8/assets/og.jpg">
+<link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="assets/icon.png">
 <link rel="apple-touch-icon" href="assets/icon.png">
 <style>
@@ -180,6 +186,13 @@
   button{transition:transform .12s, filter .12s}button:active{transform:scale(.94)}button:hover{filter:brightness(1.08)}
   .conf{position:absolute;top:-12px;width:9px;height:14px;border-radius:2px;pointer-events:none;animation:conf 2.6s ease-in forwards;z-index:9}
   @keyframes conf{to{transform:translate(var(--x),105vh) rotate(var(--r))}}
+  .howgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;text-align:left;margin-top:12px}
+  .hw{background:var(--glass2);border:1px solid var(--line);border-radius:16px;padding:10px 10px 10px 46px;position:relative;min-height:62px}
+  .hw i{position:absolute;left:10px;top:10px;width:28px;height:28px;border-radius:9px;display:grid;place-items:center;font-style:normal;font-size:16px;background:rgba(255,207,74,.16);color:var(--gold)}
+  .hw b{display:block;font-family:Anton,Impact;font-weight:400;letter-spacing:.04em;font-size:15px;margin-bottom:2px}
+  .hw span{display:block;font-size:11.5px;line-height:1.35;opacity:.85}.hw span b{display:inline;font-family:Manrope;font-weight:800;font-size:11.5px}
+  .hw em{font-style:normal;font-weight:800}.hw em.y{color:#ffd23a}.hw em.c{color:#4de1ff}.hw em.r{color:#ff5a5a}
+  .ltip{display:block;min-height:34px;margin:14px auto 6px;max-width:300px;font:700 13px Manrope,sans-serif;color:#ffe3a0;opacity:.9;transition:opacity .4s}
   .credits li span{opacity:.85;color:#fff;text-align:right;min-width:0}
   .card{overflow-x:hidden}
   .stat{font-family:Anton,Impact;font-size:72px;line-height:1}
@@ -426,13 +439,19 @@
 
 <div id="how" class="panel hide"><div class="card">
   <h2>NASIL?</h2>
-  <p><b>← →</b> ya da sağa/sola kaydır: şerit değiştir. Köşelerde kendiliğinden dönersin.</p>
-  <p><b>↑</b> ya da yukarı kaydır: zıpla (amfiler, alarmlar). <b>↓</b> ya da aşağı kaydır: kay (çarşaflı ipler, bildirim bantları).</p>
-  <p>Engele yandan sürtünürsen <b>gölge</b> yaklaşır. Kısa sürede bir daha sürtünürsen ya da önden çarparsan düşersin; o zaman grup gelip seni kaldırır.</p>
-  <p>Penaları (Eylül'le bagetleri, Güneş'le notaları) topla. ☀️ <b>Güneş</b>: gölgeyi geri iter, birkaç saniye korur. 🎤 <b>Mikrofon</b>: penaları kendine çeker. 💿 <b>Modundayız</b>: plağın üstünde 5 saniye uçarsın, engeller altında kalır. Harfleri topla, sırası fark etmez: <b>BURDAYIM</b> tamamlanınca OD Band 15 saniyelik konser verir!</p>
-  <p>🔥 <b>Kombo:</b> çarpmadan art arda topladıkça puan x2, x3, x4 olur. 🎤 <b>Sahne finali:</b> konserde düşen notalara ekranın sol/orta/sağına (← ↓ →) ritimle dokun. 👗 <b>Dolap:</b> topladıkların kasada birikir; iz, aura ve adım efekti aç. 📸 Oyun sonunda <b>story kartını</b> paylaş.</p>
-  <p style="opacity:.7">Telefonda parmağını kaydırarak oyna. Bilgisayarda ok tuşları; P: duraklat · M: ses · K: konser</p>
-  <p style="margin-top:22px"><button class="go" data-close>Tamam</button></p>
+  <div class="howgrid">
+    <div class="hw"><i>⇆</i><b>Şerit değiştir</b><span>Sağa/sola kaydır ya da ← →. Köşelerde kendiliğinden dönersin.</span></div>
+    <div class="hw"><i>⤒</i><b>Zıpla</b><span>Yukarı kaydır ya da ↑. Yerde <em class="y">sarı oklar</em> varsa zıpla.</span></div>
+    <div class="hw"><i>⤓</i><b>Kay</b><span>Aşağı kaydır ya da ↓. <em class="c">Mavi oklar</em> = altından kay.</span></div>
+    <div class="hw"><i>✕</i><b>Kaç</b><span><em class="r">Kırmızı çizgiler</em> = o şeritten çık. Sürtünürsen gölge yaklaşır.</span></div>
+    <div class="hw"><i>🎸</i><b>Topla</b><span>Pena, baget ya da nota topla. Çarpmadan topladıkça <b>kombo x4</b>'e çıkar.</span></div>
+    <div class="hw"><i>🔤</i><b>BURDAYIM</b><span>Harfleri topla (sıra fark etmez) → OD Band sahneye çıkar, sonra hayranlarla fotoğraf.</span></div>
+    <div class="hw"><i>☀️</i><b>Güneş</b><span>Gölgeyi geri iter, birkaç saniye korur.</span></div>
+    <div class="hw"><i>🎤</i><b>Mikrofon</b><span>Etraftaki her şeyi kendine çeker.</span></div>
+    <div class="hw"><i>💿</i><b>Modundayız</b><span>Plağın üstünde 5 saniye uçarsın.</span></div>
+    <div class="hw"><i>👗</i><b>Dolap</b><span>Topladıkların kasada birikir: iz, aura, adım efekti aç.</span></div>
+  </div>
+  <p style="margin-top:16px"><button class="go" data-close>Tamam</button></p>
 </div></div>
 
 <div id="over" class="panel hide"><div class="card">
@@ -458,8 +477,8 @@
 </div>
 <div id="pause" class="panel hide"><div class="card"><h2>MOLA</h2><p>Gölge de bekliyor…</p><p style="margin-top:20px"><button class="go" id="resumeBtn">Devam ▶</button></p><p><button class="ghost" id="gigBtn">🎸 Konseri başlat</button></p><p><button class="ghost" id="quitBtn">Menü</button></p></div></div>
 
-<div id="loading"><div><img src="assets/logo_red.png" alt="OD Band" style="width:min(56vw,260px);display:block;margin:0 auto 6px"><div class="lbar"><i id="lbar"></i></div><small id="ltxt">yükleniyor…</small></div></div>
+<div id="loading"><div><img src="assets/logo_red.png" alt="OD Band" style="width:min(56vw,260px);display:block;margin:0 auto 6px"><div class="lbar"><i id="lbar"></i></div><small id="ltip" class="ltip"></small><small id="ltxt">yükleniyor…</small></div></div>
 
-<script type="module" src="game.js?v=20261130k"></script>
+<script type="module" src="game.js?v=20261130m"></script>
 </body>
 </html>

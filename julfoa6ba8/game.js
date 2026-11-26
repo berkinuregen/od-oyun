@@ -2253,6 +2253,9 @@ function frame() {
   setWorld('beach', true);
   requestAnimationFrame(frame);
   await withTimeout(document.fonts.ready, 3000);
+  if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => { });
+  { const tips = ['İpucu: köşelerde kendiliğinden dönersin, sen sadece şerit değiştir.', 'İpucu: çarpmadan topla, kombo x4\'e kadar çıkar.', 'İpucu: BURDAYIM harflerini topla, OD Band sahneye çıksın.', 'İpucu: 💿 Modundayız plağı 5 saniye uçurur.', 'İpucu: topladıkların kasada birikir, Dolap\'tan efekt aç.', 'İpucu: ☀️ Güneş gölgeyi geri iter.'];
+    let k = Math.floor(Math.random() * tips.length); let iv = 0; const show = () => { const el = $('ltip'); if (!el || state !== 'loading') return clearInterval(iv); el.style.opacity = 0; setTimeout(() => { el.textContent = tips[k++ % tips.length]; el.style.opacity = .9; }, 350); }; show(); iv = setInterval(show, 2600); }
   const propsP = loadProps(); loadCrowdModels(); loadPhotographer(); loadLyrics(); const envP = loadEnv().then(() => loadEnvExtra());
   await loadGirls(p => { $('lbar').style.width = (p * 100) + '%'; $('ltxt').textContent = `karakterler yükleniyor… ${Math.round(p * 100)}%`; });
   if (LOOK === 2 && !LOOK_TPL[2].some(Boolean)) { LOOK = 1; girlTemplates = LOOK_TPL[1]; localStorage.setItem('od3_look', '1'); buildFaces(); updateLookBtn(); await loadGirls(p => { $('lbar').style.width = (p * 100) + '%'; }); }

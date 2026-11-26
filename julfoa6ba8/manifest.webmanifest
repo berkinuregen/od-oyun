@@ -1,0 +1,2 @@
+{ "name": "OD Band — Burdayım", "short_name": "Burdayım", "start_url": "./", "scope": "./", "display": "fullscreen", "orientation": "portrait",
+  "background_color": "#140a16", "theme_color": "#140a16", "icons": [{ "src": "assets/icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }] }
