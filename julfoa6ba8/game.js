@@ -601,15 +601,16 @@ function cornerWall(seg) {
     if (w === 'green' && ENV.hedge) { m = new THREE.Group(); const n = Math.ceil(Math.max(sx, sz) / 1.8); for (let i = 0; i < n; i++) { const h = envClone('hedge', 1.9); const along = -Math.max(sx, sz) / 2 + .9 + i * 1.8; h.scale.x *= 1.0; if (sx > sz) h.position.set(along, 0, 0); else h.position.set(0, 0, along); m.add(h); } }
     else if (w === 'green') { m = new THREE.Mesh(G.box, M2.hedge); m.scale.set(sx, 1.9, sz); m.position.y = .95; }
     else if (w === 'stone') { m = new THREE.Group(); const b = new THREE.Mesh(G.box, pick(M2.walls)); b.scale.set(sx, 5.5, sz); b.position.y = 2.75; m.add(b); const roof = new THREE.Mesh(G.box, M2.tile); roof.scale.set(sx + .4, .35, sz + .4); roof.position.y = 5.6; m.add(roof); }
-    else if (w === 'beach' && ENV.rock2) { m = new THREE.Group(); for (let i = 0; i < Math.max(sx, sz) / 1.6; i++) { const r = envClone(pick(['rock1', 'rock2']), rand(1.6, 2.6)); r.rotation.y = rand(0, 6); const along = -Math.max(sx, sz) / 2 + i * 1.6; if (sx > sz) r.position.set(along, 0, 0); else r.position.set(0, 0, along); m.add(r); } }
+    else if (w === 'beach' && ENV.rock2) { m = new THREE.Group(); for (let i = 0; i < Math.max(sx, sz) / 1.6; i++) { const r = envClone(pick(['rock1', 'rock2']), rand(1.3, 1.7), 'x'); r.rotation.y = rand(0, 6); const along = -Math.max(sx, sz) / 2 + .8 + i * 1.6; r.position.y = 0; if (sx > sz) r.position.set(along, 0, 0); else r.position.set(0, 0, along); m.add(r); } }
     else if (w === 'beach') { m = new THREE.Group(); for (let i = 0; i < Math.max(sx, sz) / 1.3; i++) { const r = new THREE.Mesh(G2.dodec, M2.rock); r.scale.set(rand(.7, 1.2), rand(.6, 1.1), rand(.7, 1.1)); const along = -Math.max(sx, sz) / 2 + i * 1.3; if (sx > sz) r.position.set(along, .45, 0); else r.position.set(0, .45, along); m.add(r); } }
     else { m = new THREE.Mesh(G.box, M.building); m.scale.set(sx, 14, sz); m.position.y = 7; }
     const holder = new THREE.Group(); holder.add(m); holder.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     put(seg, holder, s, lat, 0);
   };
   if (w === 'concert') { stageAt(seg, sW + .2); const sp = new THREE.Mesh(G.box, M.ampSide); sp.scale.set(1.4, 4, ROAD_W + 2); sp.castShadow = true; put(seg, sp, seg.len, outer * (ROAD_W / 2 + 1), 2); return; }
-  wall(sW, 0, ROAD_W + 4, 1.4);
-  wall(seg.len, outer * (H + .9), 1.4, ROAD_W + 2);
+  const push = w === 'beach' ? .9 : 0; // rocks are lumpy: keep them a bit further from the corner
+  wall(sW + push, 0, ROAD_W + 4, 1.4);
+  wall(seg.len, outer * (H + .9 + push), 1.4, ROAD_W + 2);
 }
 
 // ---------------- free CC0 environment models (Quaternius via poly.pizza) — procedural fallbacks if missing
@@ -969,7 +970,7 @@ function newRun() {
 }
 function startRun() {
   ac(); newRun(); state = 'run'; showUI('hud'); playSong(songIdx, 0);
-  hint(MOBILE ? 'sağa/sola kaydır: şerit · yukarı: zıpla · aşağı: kay · köşelerde dön' : '← →  şerit · ↑ zıpla · ↓ kay · köşelerde dön', 4); showMsg('KOŞ!', 1.2);
+  hint(MOBILE ? 'sağa/sola kaydır: şerit · yukarı: zıpla · aşağı: kay ' : '← →  şerit · ↑ zıpla · ↓ kay ', 4); showMsg('KOŞ!', 1.2);
 }
 function gameOver(reason) { // she falls; the band comes back for her
   if (state !== 'run') return;
@@ -1159,6 +1160,7 @@ function update(dt, t) {
     score += dz * mult;
     // corner
     if (s >= seg.len) {
+      if (!turnQ) turnQ = seg.turn; // corners turn by themselves
       if (turnQ) {
         const old = seg, oldLat = lat, over = s - old.len;
         segI++; seg = segs[segI];
@@ -1184,7 +1186,7 @@ function update(dt, t) {
     if (!tut.done) {
       for (const o of seg.objs) { if (o.done || !o.mesh?.visible) continue; const ds = o.s - s; if (ds < 4 || ds > 13) continue;
         if (['low', 'high', 'block'].includes(o.t) && Math.abs(o.lane * LANE - lat) < 1 && !tut[o.t]) { tut[o.t] = 1; showMsg({ low: MOBILE ? '↑ YUKARI KAYDIR: ZIPLA' : '↑ ZIPLA', high: MOBILE ? '↓ AŞAĞI KAYDIR: KAY' : '↓ KAY', block: MOBILE ? '← → KAYDIR: ŞERİT DEĞİŞTİR' : '← → ŞERİT DEĞİŞTİR' }[o.t], 1.6); break; } }
-      if (!tut.turn && seg.len - s < TURN_WIN && seg.len - s > 3) { tut.turn = 1; showMsg(seg.turn === 'L' ? (MOBILE ? '← SOLA KAYDIR: DÖN' : '← DÖN') : (MOBILE ? 'SAĞA KAYDIR: DÖN →' : 'DÖN →'), 1.6); }
+      tut.turn = 1; if (false) { tut.turn = 1; showMsg(seg.turn === 'L' ? (MOBILE ? '← SOLA KAYDIR: DÖN' : '← DÖN') : (MOBILE ? 'SAĞA KAYDIR: DÖN →' : 'DÖN →'), 1.6); }
       if (tut.low && tut.high && tut.block && tut.turn) { tut.done = true; localStorage.setItem('od3_tut', '1'); }
     }
     // collisions
@@ -1466,7 +1468,7 @@ function startGig() {
   gig = { t: 0, s0, stage, band: [], props: [], savedSpeed: speed, startS: s, startLat: lat };
   gigVideo.play().then(() => { stage.userData.screen.material.map = gigVideoTex; stage.userData.screen.material.needsUpdate = true; }).catch(() => { });
   gig.props.push(gigAudience(s0));
-  gig.pg = makePhotographer(); if (gig.pg) { gig.pg.holder.position.copy(segPoint(seg, s0 - 1.0, -4.3)); gig.pg.holder.rotation.y = yawOf(seg.dir) + .35; }
+  gig.pg = makePhotographer(); if (gig.pg) { gig.pg.holder.position.copy(segPoint(seg, s0 - 1.0, -4.3)); gig.pg.mixer?.update(0); faceTo(gig.pg, segPoint(seg, s0 + 1.5, -1.5)); }
   score += 1000; crowdCheer(3, .26); showMsg('OD BAND KONSERİ!', 2.2); flash('#ffcf4a', .45); $('mult').classList.add('hide');
   for (let i = 0; i < NGIRLS; i++) {
     const girl = i === sel ? player : makeGirl(i); if (i !== sel) scene.add(girl.holder);
@@ -1503,7 +1505,7 @@ function updateGig(dt, t) {
   for (const b of gig.stage.userData.beams) { b.rotation.z = Math.sin(t * 1.3 + b.userData.ph) * .5; b.rotation.x = Math.PI + Math.sin(t * .9 + b.userData.ph) * .4; }
   const left = Math.ceil(GIG_LEN + 1.2 - T0); if (left >= 0 && left <= GIG_LEN) $('hint').textContent = `🎸 KONSER ${left}`, $('hint').style.opacity = 1;
   score += dt * 40;
-  if (gig.pg) { gig.pg.mixer?.update(dt); if ((gig.pg.flashT -= dt) <= 0) { gig.pg.flashT = rand(.9, 2.2); photographerFlash(gig.pg); gig.pg.holder.rotation.y = yawOf(seg.dir) + rand(.1, .6); } }
+  if (gig.pg) { gig.pg.mixer?.update(dt); if ((gig.pg.flashT -= dt) <= 0) { gig.pg.flashT = rand(.9, 2.2); photographerFlash(gig.pg); gig.pg.aim = segPoint(seg, gig.s0 + rand(.5, 3), rand(-4, 4)); } if (gig.pg.aim) faceTo(gig.pg, gig.pg.aim, Math.min(1, dt * 4)); holdCamera(gig.pg); }
   if (T0 > 1.2 && T0 < GIG_LEN + .8) { const W = ROAD_W + 5;
     for (const sx of [-W / 2 + .5, W / 2 - .5]) { const p = segPoint(seg, gig.s0 + .1, sx, tmp2); p.y = 1.15; for (let k = 0; k < 3; k++) emit(p, Math.random() < .5 ? 0xffd36b : 0xfff1c4, rand(-.5, .5), rand(6, 9), rand(-.5, .5), rand(.5, .9)); }
     for (let k = 0; k < 3; k++) { const p = segPoint(seg, gig.s0 + rand(-6, 3), rand(-W / 2, W / 2), tmp2); p.y = rand(6, 8); emit(p, pick([0xff3d9a, 0x4de1ff, 0xffcf4a, 0xffffff, 0xe8433b]), rand(-.6, .6), rand(.5, 1.5), rand(-.6, .6), rand(1, 1.6)); }
@@ -1550,13 +1552,47 @@ function makePerson(gltf) { // animated Quaternius fan (CC0)
   mixer.update(0); holder.updateMatrixWorld(true); let minY = Infinity; const v = new THREE.Vector3(); m.traverse(o => { if (o.isBone && /foot|toe/i.test(o.name)) { o.getWorldPosition(v); minY = Math.min(minY, v.y); } }); if (isFinite(minY)) m.position.y += .06 - minY;
   return { holder, mixer, act, cur: null, play(n, f = .2) { const a = this.act[n] || this.act.idle; if (!a || a === this.cur) return; a.reset().fadeIn(f).play(); this.cur?.fadeOut(f); this.cur = a; } };
 }
+// real facing of a rigged character, measured from its head bones (models were exported with different 'fronts')
+const _fa = new THREE.Vector3(), _fb = new THREE.Vector3(), _faceT = new THREE.Vector3();
+function bonesOf(g) { if (!g.bones2) { g.bones2 = {}; g.holder.traverse(o => { if (o.isBone) g.bones2[o.name] = o; }); } return g.bones2; }
+function forwardOf(g, out = new THREE.Vector3()) {
+  const b = bonesOf(g); g.holder.updateMatrixWorld(true);
+  if (b.RightShoulder && b.LeftShoulder) { b.RightShoulder.getWorldPosition(_fa); b.LeftShoulder.getWorldPosition(_fb); _fa.sub(_fb); _fa.y = 0; out.crossVectors(_up, _fa); if (g.flipFwd) out.negate(); if (out.lengthSq() > 1e-8) return out.normalize(); } // forward = up × (right shoulder − left shoulder)
+  return out.set(-Math.sin(g.holder.rotation.y), 0, -Math.cos(g.holder.rotation.y));
+}
+function faceTo(g, target, k = 1) { const tx = target.x, tz = target.z; const f = forwardOf(g, new THREE.Vector3()); const want = Math.atan2(tx - g.holder.position.x, tz - g.holder.position.z), have = Math.atan2(f.x, f.z); g.holder.rotation.y = angLerp(g.holder.rotation.y, g.holder.rotation.y + (want - have), k); }
+// analytic two-bone IK: put the hand on `target`, elbow bending toward `poleDir`
+const _q1 = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _v1 = new THREE.Vector3(), _v2 = new THREE.Vector3(), _S = new THREE.Vector3(), _E = new THREE.Vector3(), _H = new THREE.Vector3(), _T = new THREE.Vector3(), _P = new THREE.Vector3();
+function aimBone(bone, from, to, want) { // rotate bone so the vector (to-from) points along (want-from)
+  _v1.subVectors(to, from).normalize(); _v2.subVectors(want, from).normalize(); _q1.setFromUnitVectors(_v1, _v2);
+  bone.getWorldQuaternion(_q2); _q2.premultiply(_q1); const pq = bone.parent.getWorldQuaternion(new THREE.Quaternion()).invert(); bone.quaternion.copy(pq.multiply(_q2)); bone.updateMatrixWorld(true);
+}
+function armIK(arm, fore, hand, target, poleDir) {
+  arm.getWorldPosition(_S); fore.getWorldPosition(_E); hand.getWorldPosition(_H); _T.copy(target);
+  const a = _S.distanceTo(_E), b = _E.distanceTo(_H); const dir = _v1.subVectors(_T, _S); const d = Math.min(Math.max(dir.length(), .02), a + b - .002); dir.normalize();
+  const x = (a * a - b * b + d * d) / (2 * d), y = Math.sqrt(Math.max(0, a * a - x * x));
+  _P.copy(poleDir).addScaledVector(dir, -poleDir.dot(dir)).normalize();
+  const elbow = new THREE.Vector3().copy(_S).addScaledVector(dir, x).addScaledVector(_P, y);
+  aimBone(arm, _S.clone(), _E.clone(), elbow);
+  fore.getWorldPosition(_E); hand.getWorldPosition(_H); aimBone(fore, _E.clone(), _H.clone(), _T);
+}
+const _up = new THREE.Vector3(0, 1, 0);
+function holdCamera(pg) { // after the idle pose: hands on the camera in front of his eyes
+  const b = bonesOf(pg); if (!b.Head || !b.RightArm || !b.LeftArm) return;
+  const f = forwardOf(pg, new THREE.Vector3()), r = new THREE.Vector3().crossVectors(f, _up).normalize();
+  const head = b.Head.getWorldPosition(new THREE.Vector3()); const cam = head.clone().addScaledVector(f, .2).addScaledVector(_up, -.02);
+  pg.cam.position.copy(cam); pg.cam.lookAt(cam.clone().sub(f));
+  const k = pg.flipFwd ? -1 : 1; // swapped rig: the bone called "Right" is his left arm
+  armIK(b.RightArm, b.RightForeArm, b.RightHand, cam.clone().addScaledVector(r, .08 * k).addScaledVector(_up, -.03), r.clone().multiplyScalar(.3 * k).addScaledVector(_up, -1).addScaledVector(f, .25));
+  armIK(b.LeftArm, b.LeftForeArm, b.LeftHand, cam.clone().addScaledVector(r, -.08 * k).addScaledVector(_up, -.05).addScaledVector(f, .04), r.clone().multiplyScalar(-.3 * k).addScaledVector(_up, -1).addScaledVector(f, .25));
+}
 function makePhotographer() { // our DoP with his camera (falls back to a crowd man if his model is missing)
   let pg = null;
-  if (PHOTOG) { pg = makeGirl(-1); pg.inner.rotation.y = 0; playAct(pg, 'idle', 0, 1); } // his model was exported facing the other way else if (CROWD.raw?.[0]) { pg = makePerson(CROWD.raw[0]); pg.play('idle', 0); }
+  if (PHOTOG) { pg = makeGirl(-1); playAct(pg, 'idle', 0, 1); } else if (CROWD.raw?.[0]) { pg = makePerson(CROWD.raw[0]); pg.play('idle', 0); }
   if (!pg) return null; scene.add(pg.holder);
   const cam = new THREE.Group(); const body = new THREE.Mesh(new THREE.BoxGeometry(.16, .11, .09), new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: .5 })); cam.add(body);
   const lens = new THREE.Mesh(new THREE.CylinderGeometry(.04, .045, .12, 16), new THREE.MeshStandardMaterial({ color: 0x111111, roughness: .3, metalness: .5 })); lens.rotation.x = Math.PI / 2; lens.position.z = -.09; cam.add(lens);
-  cam.position.set(0, 1.62, -.22); pg.holder.add(cam); pg.cam = cam; pg.flashT = 1; return pg;
+  scene.add(cam); pg.cam = cam; pg.flashT = 1; return pg;
 }
 function photographerFlash(pg) { const p = pg.cam.getWorldPosition(new THREE.Vector3()); for (let k = 0; k < 14; k++) emit(p, 0xffffff, rand(-1.5, 1.5), rand(-.5, 1.5), rand(-1.5, 1.5), .18); sfx(2600, .03, 'square', .015); }
 function startPhoto() {
@@ -1569,7 +1605,7 @@ function startPhoto() {
   const spot = segPoint(seg, s0 - 2.2, -.45); player.holder.position.copy(spot); player.holder.position.y = 0;
   const face = yawOf(seg.dir) + Math.PI; player.holder.rotation.y = face; player.inner.rotation.set(0, Math.PI, 0); playAct(player, 'idle', .3, 1);
   const pg = gig.pg || makePhotographer(); gig.pg = null;
-  if (pg) { pg.holder.position.copy(segPoint(seg, s0 - 7.2, .2)); pg.holder.rotation.y = yawOf(seg.dir); pg.holder.parent || scene.add(pg.holder); }
+  if (pg) { pg.holder.position.copy(segPoint(seg, s0 - 7.2, .2)); pg.holder.parent || scene.add(pg.holder); pg.mixer?.update(0); faceTo(pg, segPoint(seg, s0 - 2.2, 0)); }
   $('hint').style.opacity = 0;
   photo = { s0, n: 0, phase: 'walk', t: 0, fan: null, pg, total: 0, needle: 0, dir: 1, speed: 1.1, shots: [] };
   nextFan(); $('photoUi').classList.remove('hide'); showMsg('HAYRANLAR FOTOĞRAF İSTİYOR!', 2);
@@ -1587,6 +1623,7 @@ function nextFan() {
 }
 function updatePhoto(dt, t) {
   const P = photo, fan = P.fan; P.t += dt; fan.mixer?.update(dt); player.mixer?.update(dt); P.pg?.mixer?.update(dt);
+  if (P.pg) { faceTo(P.pg, segPoint(seg, P.s0 - 2.2, 0, _faceT), Math.min(1, dt * 6)); holdCamera(P.pg); faceTo(player, _faceT.copy(P.pg.holder.position), Math.min(1, dt * 6)); }
   const face = yawOf(seg.dir) + Math.PI;
   if (P.phase === 'walk') {
     const to = tmp2.copy(fan.to).sub(fan.holder.position); to.y = 0; const d = to.length();
@@ -1595,7 +1632,7 @@ function updatePhoto(dt, t) {
   } else if (P.phase === 'aim') {
     P.needle += P.dir * P.speed * dt; if (P.needle > 1) { P.needle = 2 - P.needle; P.dir = -1; } if (P.needle < 0) { P.needle = -P.needle; P.dir = 1; }
     $('photoNeedle').style.left = (P.needle * 100) + '%';
-    fan.holder.rotation.y = yawOf(seg.dir); player.holder.rotation.y = angLerp(player.holder.rotation.y, face + .25, dt * 4);
+    fan.holder.rotation.y = yawOf(seg.dir);
     if (P.t > 7) shoot(); // too slow: blurry shot
   } else if (P.phase === 'after') {
     if (P.t > .55 && P.t < .6) { fan.play('walk'); }
@@ -1603,7 +1640,7 @@ function updatePhoto(dt, t) {
     if (P.t > 1.35) { P.n++; nextFan(); }
   }
   // camera over the photographer's shoulder, framing her + the fan
-  const mid = segPoint(seg, P.s0 - 2.2, 0, tmp2).setY(1.3), back = segPoint(seg, P.s0 - 10.4, .95, tmp); back.y = 2.55; // just behind and above the photographer's shoulder
+  const mid = segPoint(seg, P.s0 - 2.2, 0, tmp2).setY(1.3), back = segPoint(seg, P.s0 - 10.0, .45, tmp); back.y = 2.45; // right behind him, a little above his shoulder
   camera.position.lerp(back, Math.min(1, dt * 3)); camera.lookAt(mid);
 }
 function shoot() {
@@ -1620,7 +1657,7 @@ function showPolaroid(url, info) {
   setTimeout(() => el.classList.add('out'), 1600); setTimeout(() => el.remove(), 2300);
 }
 function endPhoto() {
-  const P = photo; if (P.pg) scene.remove(P.pg.holder); if (P.fan) scene.remove(P.fan.holder);
+  const P = photo; if (P.pg) { scene.remove(P.pg.holder); P.pg.cam?.parent?.remove(P.pg.cam); } if (P.fan) scene.remove(P.fan.holder);
   $('photoUi').classList.add('hide'); showMsg(`FOTOĞRAFLAR +${P.total}`, 1.6); photo = null;
   endGig();
 }
@@ -1664,7 +1701,16 @@ function frame() {
   if (state !== 'loading') { update(dt, t); updateParticles(dt); adaptResolution(dt); updateLyrics(); }
   if (state === 'run') { const f = (camera.aspect < .8 ? 70 : 58) + (speed - 13) * .45; if (Math.abs(camera.fov - f) > .05) { camera.fov += (f - camera.fov) * Math.min(1, dt * 2); camera.updateProjectionMatrix(); } }
   composer.render();
-  if (captureNext) { try { showPolaroid(renderer.domElement.toDataURL('image/jpeg', .72), captureNext); } catch (e) { } captureNext = null; }
+  if (captureNext) {
+    try {
+      const pg = photo?.pg; const saveP = camera.position.clone(), saveQ = camera.quaternion.clone(), saveF = camera.fov;
+      if (pg?.cam) { pg.holder.visible = false; pg.cam.visible = false; camera.position.copy(pg.cam.position); camera.lookAt(segPoint(seg, photo.s0 - 2.2, 0, tmp2).setY(1.25)); camera.fov = 34; camera.updateProjectionMatrix(); $('photoUi').style.visibility = 'hidden'; composer.render(); }
+      const url = renderer.domElement.toDataURL('image/jpeg', .72);
+      if (pg?.cam) { pg.holder.visible = true; pg.cam.visible = true; camera.position.copy(saveP); camera.quaternion.copy(saveQ); camera.fov = saveF; camera.updateProjectionMatrix(); $('photoUi').style.visibility = ''; composer.render(); }
+      showPolaroid(url, captureNext);
+    } catch (e) { }
+    captureNext = null;
+  }
   requestAnimationFrame(frame);
 }
 
