@@ -1681,13 +1681,16 @@ const WARD = [
   { id: 'aura:pink', cat: 'aura', name: 'Pembe Aura', price: 150, col: 0xff4fc0, k: 1, sw: 'radial-gradient(circle,#fff,#ff4fc0)' },
   { id: 'aura:cyan', cat: 'aura', name: 'Buz Aura', price: 150, col: 0x5fe8ff, k: 1, sw: 'radial-gradient(circle,#fff,#5fe8ff)' },
   { id: 'aura:gold', cat: 'aura', name: 'Altın Aura', price: 300, col: 0xffc83a, k: 1.1, sw: 'radial-gradient(circle,#fff,#ffc83a)' },
-  { id: 'guitar:classic', cat: 'guitar', name: 'Klasik', price: 0, sw: 'linear-gradient(135deg,#7a4a2a,#c4142c)' },
-  { id: 'guitar:red', cat: 'guitar', name: 'Kırmızı', price: 100, col: 0xd4202c, sw: 'linear-gradient(135deg,#8a0f18,#ff3b4e)' },
-  { id: 'guitar:purple', cat: 'guitar', name: 'Mor', price: 200, col: 0x7b3cff, sw: 'linear-gradient(135deg,#3a1080,#a66bff)' },
-  { id: 'guitar:gold', cat: 'guitar', name: 'Altın', price: 400, col: 0xe8b400, sw: 'linear-gradient(135deg,#a07000,#ffe27a)' },
+  { id: 'step:auto', cat: 'step', name: 'Dünyaya göre', price: 0, sw: 'linear-gradient(135deg,#9a7a52,#ead0a2)' },
+  { id: 'step:hearts', cat: 'step', name: 'Kalpler', price: 100, cols: [0xff4fa3, 0xff8ad8, 0xffffff], rise: 1.4, sw: 'radial-gradient(circle,#ffd0e8,#ff4fa3)' },
+  { id: 'step:stars', cat: 'step', name: 'Yıldız Tozu', price: 200, cols: [0xffd23a, 0xfff3b0, 0xffffff], rise: 2.2, sw: 'radial-gradient(circle,#fff7c8,#ffc23a)' },
+  { id: 'step:fire', cat: 'step', name: 'Alev', price: 300, cols: [0xff6a1a, 0xffb02e, 0xff2a2a], rise: 2.8, sw: 'radial-gradient(circle,#ffe08a,#ff4a1a)' },
+  { id: 'step:ice', cat: 'step', name: 'Buz Kristali', price: 400, cols: [0x9af2ff, 0x4de1ff, 0xffffff], rise: 1.8, sw: 'radial-gradient(circle,#ffffff,#4de1ff)' },
 ];
-const owned = new Set(JSON.parse(localStorage.getItem('od3_owned') || '[]')); WARD.filter(w => !w.price).forEach(w => owned.add(w.id));
-const equip = Object.assign({ trail: 'trail:none', aura: 'aura:auto', guitar: 'guitar:classic' }, JSON.parse(localStorage.getItem('od3_equip') || '{}'));
+const owned = new Set(JSON.parse(localStorage.getItem('od3_owned') || '[]'));
+{ const refund = { 'guitar:red': 100, 'guitar:purple': 200, 'guitar:gold': 400 }; for (const id of [...owned]) if (id.startsWith('guitar:')) { bank += refund[id] || 0; owned.delete(id); } localStorage.setItem('od3_bank', bank); } // guitar colours retired: money back
+WARD.filter(w => !w.price).forEach(w => owned.add(w.id));
+const equip = Object.assign({ trail: 'trail:none', aura: 'aura:auto', step: 'step:auto' }, JSON.parse(localStorage.getItem('od3_equip') || '{}')); delete equip.guitar;
 const wItem = cat => WARD.find(w => w.id === equip[cat]);
 function saveWard() { localStorage.setItem('od3_owned', JSON.stringify([...owned])); localStorage.setItem('od3_equip', JSON.stringify(equip)); localStorage.setItem('od3_bank', bank); }
 let wardCat = 'trail';
@@ -1786,7 +1789,7 @@ function guitarProp(i, bass) {
   const h = bass ? 1.15 : 1.0; g.children[0].position.y -= h * .24;
   // body colour per member and wardrobe (look 2 = the AGITÉ video: Sude black, Öykü blush pink, Umay pink bass)
   const tint = bass ? (LOOK === 2 ? 0xf4b6c8 : null) : i === 4 ? (LOOK === 2 ? 0xe9b9ad : 0xc4142c) : (LOOK === 2 ? 0x161616 : null);
-  const gw = wItem('guitar'); const tint2 = gw && gw.col ? gw.col : tint;
+  const tint2 = tint;
   if (tint2 !== null) g.traverse(o => { if (!o.isMesh || !o.material) return; const tint = tint2;
     if (bass) { if (o.material.name === 'Wood2Bass1') { o.material = o.material.clone(); o.material.color.set(tint); } }
     else if (o.material.map) { o.material = o.material.clone(); o.material.map = tintedGuitarTex(o.material.map, tint); } });
@@ -2131,6 +2134,8 @@ function footstep(fp) { // particles come out right where the foot lands
   if (params.has('stepdbg')) { (window.__st ||= []).push([+fp.x.toFixed(2), +fp.y.toFixed(2), +fp.z.toFixed(2), +player.holder.position.x.toFixed(2), +player.holder.position.z.toFixed(2)]); }
   const w = worldAt(seg, s), fx = STEP_FX[w] || STEP_FX.stone, d = DIRS[seg.dir], r = DIRS[(seg.dir + 1) % 4];
   const x = fp.x, z = fp.z;
+  if (QA) QA.steps = (QA.steps || 0) + 1;
+  const st = typeof wItem === 'function' && wItem('step'); if (st && st.cols) { for (let k = 0; k < 14; k++) emit(tmp2.set(x + rand(-.1, .1), .14, z + rand(-.1, .1)), pick(st.cols), rand(-.7, .7) - d[0] * rand(.3, 1), rand(1, 1.7) * st.rise, rand(-.7, .7) - d[1] * rand(.3, 1), rand(.5, .8)); return; }
   for (let k = 0; k < Math.round(fx.n * 1.6); k++) { const col = Math.random() < .12 ? pick(fx.extra) : pick(fx.cols), sp = rand(-fx.spread, fx.spread), bk = rand(.2, 1) * fx.back;
     const vx = r[0] * sp - d[0] * bk, vz = r[1] * sp - d[1] * bk, vy = rand(fx.up[0], fx.up[1]);
     if (fx.glow) emit(tmp2.set(x, .1, z), col, vx, vy, vz, rand(fx.life[0], fx.life[1])); else sEmit(x + rand(-.05, .05), .05, z + rand(-.05, .05), col, vx, vy, vz, rand(fx.life[0], fx.life[1]), fx.grav); }
@@ -2171,7 +2176,7 @@ function updateLyrics() {
 // ------------------------------------------------------------------ main loop
 // QA hooks (only with #qa in the URL): metrics + optional autopilot bot (#qa&bot)
 const QA = location.hash.includes('qa') ? { n: 0, acc: 0, fps: 0, minFps: 999, bot: location.hash.includes('bot') } : null;
-if (QA) window.__qa = () => ({ state, segI, s: +(s || 0).toFixed(1), world: curWorld, score: Math.floor(score || 0), dist: Math.floor(dist || 0), fps: +QA.fps.toFixed(1), minFps: +QA.minFps.toFixed(1), calls: renderer.info.render.calls, tris: renderer.info.render.triangles, geos: renderer.info.memory.geometries, tex: renderer.info.memory.textures, pr: renderer.getPixelRatio(), gl: renderer.getContext().getParameter(renderer.getContext().VERSION) });
+if (QA) window.__qa = () => ({ state, segI, s: +(s || 0).toFixed(1), world: curWorld, score: Math.floor(score || 0), dist: Math.floor(dist || 0), fps: +QA.fps.toFixed(1), minFps: +QA.minFps.toFixed(1), calls: renderer.info.render.calls, tris: renderer.info.render.triangles, geos: renderer.info.memory.geometries, tex: renderer.info.memory.textures, pr: renderer.getPixelRatio(), steps: QA.steps || 0, stepStyle: (typeof equip !== 'undefined' && equip.step) || '', gl: renderer.getContext().getParameter(renderer.getContext().VERSION) });
 // ------------------------------------------------------------------ juice: beat clock, popups, shake, hitstop
 const BPM = 111.5, BEAT0 = .279; let beatPulse = 0, shakeT = 0, shakeAmp = 0, hitStop = 0, wasAir = false, shownWorld = null;
 function beatPhase() { const ct = songTime(); return ((ct - BEAT0) * BPM / 60) % 1; }
