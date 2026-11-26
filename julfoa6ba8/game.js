@@ -1145,7 +1145,7 @@ function gameOver(reason) { // she falls; the band comes back for her
   for (const o of seg.objs) if (o.mesh && o.s > s - 4 && o.s < s + 6) o.mesh.visible = false; // clear the stage for the band
   const sc = Math.floor(score); const nb = sc > best; if (nb) { best = sc; localStorage.setItem('od3_best', best); }
   $('overScore').textContent = sc; $('overPicks').textContent = picks; $('overDist').textContent = Math.floor(dist); $('overBest').textContent = best;
-  $('newBest').classList.toggle('hide', !nb); $('overFace').src = faceSrc(sel);
+  $('newBest').classList.toggle('hide', !nb); $('overFace').src = faceSrc(sel); lbPrepare(sc);
   $('overLine').textContent = `${BAND[sel].name} düştü ama yalnız değil.`; $('overItem').textContent = BAND[sel].item;
   $('hint').style.opacity = 0;
 }
@@ -1232,6 +1232,37 @@ $('nextBtn').onclick = () => selGirl(sel + 1);
 $('bandBtn').onclick = () => $('band').classList.remove('hide'); if (params.has('band')) setTimeout(() => $('band').classList.remove('hide'), 500);
 $('howBtn').onclick = () => $('how').classList.remove('hide');
 $('muteBtn').onclick = () => setMuted(!muted);
+// ------------------------------------------------------------------ leaderboard (Supabase REST; table public.scores, insert+select only via RLS)
+const LB = { url: '', key: '' }; // filled in once the Supabase project exists
+const lbOn = () => !!(LB.url && LB.key);
+let lastRun = null;
+async function lbFetch(limit = 20) {
+  const r = await fetch(`${LB.url}/rest/v1/scores?select=name,score,member,created_at&order=score.desc,created_at.asc&limit=${limit}`, { headers: { apikey: LB.key, Authorization: `Bearer ${LB.key}` } });
+  if (!r.ok) throw new Error(r.status); return r.json();
+}
+function lbRender(el, rows, mine) {
+  const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  el.innerHTML = rows.length ? rows.map(r => `<li class="${mine && r.name === mine.name && r.score === mine.score ? 'me' : ''}"><img src="${faceSrc(r.member)}" alt=""><span>${esc(r.name)}</span><b>${r.score}</b></li>`).join('') : '<li class="empty">Henüz skor yok. İlk sen ol!</li>';
+}
+async function lbShow() { $('lb').classList.remove('hide'); try { lbRender($('lbList'), await lbFetch(20), lastRun?.saved); } catch (e) { $('lbList').innerHTML = '<li class="empty">Skorlar şu an yüklenemedi.</li>'; } }
+async function lbSave() {
+  if (!lastRun || lastRun.saved) return; const name = $('lbName').value.replace(/\s+/g, ' ').trim().slice(0, 16);
+  if (name.length < 2) { $('lbMsg').textContent = 'En az 2 harf yaz.'; return; }
+  localStorage.setItem('od3_name', name); $('lbSaveBtn').disabled = true; $('lbMsg').textContent = 'Kaydediliyor…';
+  try {
+    const r = await fetch(`${LB.url}/rest/v1/scores`, { method: 'POST', headers: { apikey: LB.key, Authorization: `Bearer ${LB.key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify({ name, score: lastRun.score, member: lastRun.member }) });
+    if (!r.ok) throw new Error(r.status);
+    lastRun.saved = { name, score: lastRun.score }; $('lbMsg').textContent = 'Kaydedildi ✓'; $('lbSaveBtn').textContent = 'KAYDEDİLDİ ✓';
+    const rows = await lbFetch(10); $('lbMini').classList.remove('hide'); lbRender($('lbMini'), rows, lastRun.saved);
+  } catch (e) { $('lbMsg').textContent = 'Kaydedilemedi, tekrar dene.'; $('lbSaveBtn').disabled = false; }
+}
+function lbPrepare(sc) { // called when the game-over panel is filled in
+  lastRun = { score: sc, member: sel, saved: null };
+  $('lbSave').classList.toggle('hide', !lbOn() || sc <= 0); $('lbMini').classList.add('hide'); $('lbMsg').textContent = '';
+  $('lbSaveBtn').disabled = false; $('lbSaveBtn').textContent = 'SKORU KAYDET'; $('lbName').value = localStorage.getItem('od3_name') || '';
+}
+$('lbSaveBtn').onclick = lbSave; $('lbName').addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') lbSave(); });
+$('lbBtn').onclick = lbShow; $('lbBtn').classList.toggle('hide', !lbOn());
 document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => b.closest('.panel').classList.add('hide'));
 function buildFaces() { $('faces').innerHTML = [...Array(NGIRLS)].map((_, i) => `<button data-i="${i}" title="${BAND[i].name}"><img src="${faceSrc(i)}" alt="${BAND[i].name}"></button>`).join(''); $('faces').querySelectorAll('button').forEach(b => b.onclick = () => selGirl(+b.dataset.i)); }
 buildFaces();

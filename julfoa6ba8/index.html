@@ -144,6 +144,18 @@
   .disc li{display:flex;justify-content:space-between;gap:10px;padding:8px 2px;border-bottom:1px solid rgba(255,255,255,.1);font-weight:700}
   .disc li span{opacity:.6;font-weight:600;font-size:13px;text-align:right}
   .disc li.play{color:var(--gold)}
+  .lbsave{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:16px}
+  .lbsave input{flex:1 1 160px;max-width:220px;padding:12px 14px;border-radius:14px;border:2px solid rgba(255,255,255,.25);background:rgba(0,0,0,.35);color:#fff;font:700 16px Manrope,sans-serif;text-align:center}
+  .lbsave .go{padding:12px 18px;font-size:16px}
+  .lbmsg{flex-basis:100%;font-size:12px;opacity:.75;min-height:14px}
+  .lblist{list-style:none;padding:0;margin:12px auto 0;max-width:360px;text-align:left;counter-reset:r}
+  .lblist li{display:grid;grid-template-columns:30px 30px 1fr auto;align-items:center;gap:8px;padding:7px 8px;border-bottom:1px solid rgba(255,255,255,.1);font-weight:800;counter-increment:r}
+  .lblist li::before{content:counter(r);font-family:Anton,Impact;font-size:18px;color:var(--gold);text-align:center}
+  .lblist li img{width:28px;height:28px;border-radius:50%;object-fit:cover}
+  .lblist li b{font-family:Anton,Impact;font-size:18px;letter-spacing:.02em}
+  .lblist li.me{background:rgba(255,207,74,.18);border-radius:10px}
+  .lblist li.empty{display:block;text-align:center;opacity:.6}
+  .lblist li.empty::before{content:none}
   .credits li span{opacity:.85;color:#fff;text-align:right;min-width:0}
   .card{overflow-x:hidden}
   .stat{font-family:Anton,Impact;font-size:72px;line-height:1}
@@ -192,7 +204,7 @@
     <div class="faces" id="faces"></div>
     <div class="row"><button class="go" id="goBtn">Koş ▶</button></div>
     <div class="row"><button class="ghost agite" id="lookBtn"><img src="assets/agite_white.png" alt="AGITÉ"><span id="lookTxt"></span></button></div>
-    <div class="row"><button class="ghost" id="bandBtn">Ekip</button><button class="ghost" id="howBtn">Nasıl oynanır</button><button class="ghost" id="muteBtn">Ses: açık</button></div>
+    <div class="row"><button class="ghost" id="bandBtn">Ekip</button><button class="ghost" id="howBtn">Nasıl oynanır</button><button class="ghost hide" id="lbBtn">Skorlar</button><button class="ghost" id="muteBtn">Ses: açık</button></div>
     <div class="best" id="bestTxt"></div>
   </div>
 </div>
@@ -241,6 +253,13 @@
   <p style="margin-top:22px"><button class="go" data-close>Tamam</button></p>
 </div></div>
 
+<div id="lb" class="panel hide"><div class="card">
+  <h2>SKOR TABLOSU</h2>
+  <p style="opacity:.7;font-size:13px">En yüksek 20 koşu</p>
+  <ol id="lbList" class="lblist"><li class="empty">Yükleniyor…</li></ol>
+  <p style="margin-top:22px"><button class="go" data-close>Tamam</button></p>
+</div></div>
+
 <div id="how" class="panel hide"><div class="card">
   <h2>NASIL?</h2>
   <p><b>← →</b> ya da sağa/sola kaydır: şerit değiştir. Köşelerde kendiliğinden dönersin.</p>
@@ -259,6 +278,8 @@
   <div id="newBest" class="newbest hide">YENİ REKOR!</div>
   <div class="stat" id="overScore">0</div><div class="statl">PUAN</div>
   <p style="margin-top:12px"><b id="overPicks">0</b> <span id="overItem">pena</span> · <b id="overDist">0</b> m · rekor <b id="overBest">0</b></p>
+  <div id="lbSave" class="lbsave hide"><input id="lbName" maxlength="16" placeholder="Adın / takma adın" autocomplete="nickname"><button class="go" id="lbSaveBtn">SKORU KAYDET</button><div id="lbMsg" class="lbmsg"></div></div>
+  <ol id="lbMini" class="lblist hide"></ol>
   <p style="margin-top:20px"><button class="go" id="againBtn">Tekrar koş ▶</button></p>
   <p><button class="ghost" id="shareBtn" style="text-transform:none">PUANIMI PAYLAŞ</button> <button class="ghost" id="menuBtn" style="text-transform:none">BAŞKA ÜYEYLE KOŞ</button></p>
 </div></div>
@@ -273,6 +294,6 @@
 
 <div id="loading"><div><img src="assets/logo_red.png" alt="OD Band" style="width:min(56vw,260px);display:block;margin:0 auto 6px"><div class="lbar"><i id="lbar"></i></div><small id="ltxt">yükleniyor…</small></div></div>
 
-<script type="module" src="game.js?v=20261128u"></script>
+<script type="module" src="game.js?v=20261128v"></script>
 </body>
 </html>
