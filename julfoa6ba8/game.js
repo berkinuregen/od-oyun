@@ -152,17 +152,32 @@ sea.rotation.x = -Math.PI / 2; sea.position.y = -.45; sea.receiveShadow = false;
 // distant silhouettes ring
 const farGroup = new THREE.Group(); scene.add(farGroup);
 let farWorld = null;
-function buildFar(world) {
-  farGroup.clear(); farWorld = world;
-  const col = { green: 0x7c9a78, stone: 0xb08a7a, beach: 0x7a4a6a, concert: 0x1a1030, night: 0x120a22 }[world];
-  const mat = new THREE.MeshBasicMaterial({ color: col, fog: false });
-  for (let i = 0; i < 40; i++) {
-    const a = i / 40 * Math.PI * 2, r = 620; let m;
-    if (world === 'night' || (world === 'concert' && i % 3 === 0)) { const h = rand(30, 120); m = new THREE.Mesh(new THREE.BoxGeometry(rand(20, 50), h, 20), mat); m.position.set(Math.cos(a) * r, h / 2 - 2, Math.sin(a) * r); m.lookAt(0, h / 2, 0); }
-    else if (world === 'beach') { if (Math.random() < .5) continue; m = new THREE.Mesh(new THREE.ConeGeometry(rand(40, 90), rand(14, 40), 5), mat); m.position.set(Math.cos(a) * r, -2, Math.sin(a) * r); }
-    else { m = new THREE.Mesh(new THREE.SphereGeometry(rand(60, 120), 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), mat); m.scale.y = world === 'green' ? rand(.35, .6) : rand(.25, .45); m.position.set(Math.cos(a) * r, -3, Math.sin(a) * r); }
-    farGroup.add(m);
+function ridgeNoise(a, seed, oct = 5) { let v = 0, amp = 1, f = 1, n = 0; for (let o = 0; o < oct; o++) { v += amp * (Math.sin(a * f * 3 + seed * 1.7 + o * 2.3) * .5 + Math.sin(a * f * 7.3 + seed * 3.1 + o) * .3 + Math.sin(a * f * 13.7 + seed * .7) * .2); n += amp; amp *= .5; f *= 2.07; } return v / n; }
+function ridge(r, hMin, hMax, colLow, colHigh, haze, hazeK, seed, snow, sharp = 1) {
+  const N = 360, pos = [], col = [], idx = [], cl = new THREE.Color(colLow), ch = new THREE.Color(colHigh), hz = new THREE.Color(haze), sw = new THREE.Color(0xf4f6fa), tmpc = new THREE.Color();
+  for (let i = 0; i <= N; i++) {
+    const a = i / N * Math.PI * 2; let n = ridgeNoise(a, seed) * .5 + .5; n = Math.pow(n, sharp); const h = hMin + (hMax - hMin) * n;
+    const x = Math.cos(a), z = Math.sin(a);
+    pos.push(x * r, -6, z * r, x * r, h, z * r);
+    tmpc.copy(cl).lerp(hz, hazeK); col.push(tmpc.r, tmpc.g, tmpc.b);
+    tmpc.copy(ch); if (snow && n > snow) tmpc.lerp(sw, Math.min(1, (n - snow) / (1 - snow) * 1.6)); tmpc.lerp(hz, hazeK * .7); col.push(tmpc.r, tmpc.g, tmpc.b);
+    if (i < N) { const k = i * 2; idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2); }
   }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.setIndex(idx);
+  return new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, fog: false, side: THREE.DoubleSide }));
+}
+function buildFar(world) {
+  farGroup.children.forEach(o => { o.geometry?.dispose(); o.material?.dispose?.(); }); farGroup.clear(); farWorld = world;
+  const P = { // [radius, hMin, hMax, low, high, hazeK, snow, sharp]
+    green: { haze: 0xcfe0d4, L: [[760, 60, 190, 0x5f7f96, 0x8fa9bd, .55, .78, 1.6], [600, 30, 110, 0x4f7a4a, 0x7fa463, .35, 0, 1.2], [470, 12, 55, 0x3f6a38, 0x6c9a4c, .15, 0, 1]] },
+    stone: { haze: 0xf0cfae, L: [[760, 50, 160, 0x9a7f86, 0xc9a69a, .55, .82, 1.5], [600, 25, 90, 0x8d7466, 0xb89a80, .35, 0, 1.2], [470, 10, 45, 0x7a6a52, 0xa8936e, .15, 0, 1]] },
+    beach: { haze: 0xf0a07a, L: [[760, 40, 140, 0x6a3f6e, 0x9a5a86, .5, 0, 1.4], [600, 15, 75, 0x55345e, 0x82507a, .3, 0, 1.3], [480, 4, 30, 0x46304e, 0x6e4a66, .15, 0, 1]] },
+    concert: { haze: 0x2a1840, L: [[760, 40, 150, 0x1a1030, 0x2c1a48, .4, 0, 1.4], [600, 20, 80, 0x140c26, 0x24163c, .25, 0, 1.2]] },
+    night: { haze: 0x1a0f2e, L: [[760, 40, 150, 0x120a22, 0x22143a, .4, 0, 1.4]] },
+  }[world] || null;
+  if (P) P.L.forEach(([r, h0, h1, lo, hi, hk, snow, sh], k) => farGroup.add(ridge(r, h0, h1, lo, hi, P.haze, hk, k * 11.3 + world.length, snow, sh)));
+  if (world === 'concert' || world === 'night') { const mat = new THREE.MeshBasicMaterial({ color: world === 'concert' ? 0x1a1030 : 0x120a22, fog: false });
+    for (let i = 0; i < 40; i++) { const a = i / 40 * Math.PI * 2, r = 560, h = rand(30, 120); const m = new THREE.Mesh(new THREE.BoxGeometry(rand(20, 50), h, 20), mat); m.position.set(Math.cos(a) * r, h / 2 - 2, Math.sin(a) * r); m.lookAt(0, h / 2, 0); if (i % 3 === 0 || world === 'night') farGroup.add(m); } }
 }
 
 // ------------------------------------------------------------------ textures
@@ -783,7 +798,29 @@ function billboard(seg, s, side, w) {
   g.traverse(o => { if (o.isMesh) o.castShadow = true; });
   g.rotation.y = -side * .45; put(seg, g, s, side * (H + (big ? 12.5 : 3.6) + pw * .25), 0);
 }
+const grassTime = { value: 0 };
+const grassGeo = (() => { const pos = [], col = [], base = new THREE.Color(0x2f5a1e), tip = new THREE.Color(0x9cc75a), tip2 = new THREE.Color(0xc4d86a);
+  for (let b = 0; b < 7; b++) { const a = rand(0, Math.PI * 2), r = rand(0, .22), x = Math.cos(a) * r, z = Math.sin(a) * r, h = rand(.28, .62), w = rand(.035, .06), ra = rand(0, Math.PI), lx = Math.cos(ra) * w, lz = Math.sin(ra) * w, bend = rand(-.12, .12);
+    pos.push(x - lx, 0, z - lz, x + lx, 0, z + lz, x + bend, h, z + bend * .6); const tc = Math.random() < .3 ? tip2 : tip; col.push(base.r, base.g, base.b, base.r, base.g, base.b, tc.r, tc.g, tc.b); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.computeVertexNormals(); g.userData.keep = true; return g; })();
+const grassMat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
+grassMat.onBeforeCompile = sh => { sh.uniforms.gTime = grassTime; sh.vertexShader = 'uniform float gTime;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+  #ifdef USE_INSTANCING
+  vec2 ip = instanceMatrix[3].xz; float sw = sin(gTime * 2.1 + ip.x * .35 + ip.y * .27) * .5 + sin(gTime * 3.3 + ip.x * .9) * .2;
+  transformed.x += sw * .09 * position.y * position.y * 6.0; transformed.z += sw * .05 * position.y * position.y * 6.0;
+  #endif`); };
+function grassField(seg, a, b, tint) {
+  a = Math.max(a, 9); b = Math.min(b, seg.len - 9); if (b <= a) return; const H = ROAD_W / 2, m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), sc = new THREE.Vector3(), p = new THREE.Vector3();
+  for (const side of [-1, 1]) {
+    const dens = MOBILE ? 1.1 : 2.2, n = Math.round((b - a) * 14 * dens), im = new THREE.InstancedMesh(grassGeo, grassMat, n), col = new THREE.Color();
+    for (let i = 0; i < n; i++) { const near = Math.random() < .7, lat = H + .25 + (near ? Math.pow(Math.random(), 1.3) * 9 : 9 + Math.random() * 16);
+      p.set(side * lat, 0, -rand(a, b)); q.setFromAxisAngle(up, rand(0, 6.28)); const k = rand(.7, 1.35) * (near ? 1 : 1.15); sc.set(k, k * rand(.8, 1.25), k); m4.compose(p, q, sc); im.setMatrixAt(i, m4);
+      im.setColorAt(i, col.setHSL(rand(.22, .3), rand(.35, .6), rand(.42, .62)).multiply(tint)); }
+    im.computeBoundingSphere(); im.receiveShadow = true; seg.group.add(im);
+  }
+}
 function fillLand(seg, w, a, b) {
+  if (w === 'green') grassField(seg, a, b, new THREE.Color(1, 1, 1)); else if (w === 'concert') grassField(seg, a, b, new THREE.Color(.55, .55, .7));
   if (Math.random() < (params.has('ad') ? 1 : .45)) { const lo = Math.max(a, 16), hi = Math.min(b, seg.len - 16); if (hi > lo) billboard(seg, rand(lo, hi), w === 'beach' ? 1 : (Math.random() < .5 ? -1 : 1), w); }
   const H = ROAD_W / 2;
   if (w === 'green') for (const side of [-1, 1]) {
@@ -1378,7 +1415,7 @@ function update(dt, t) {
   if (hintTimer > 0 && (hintTimer -= dt) <= 0) $('hint').style.opacity = 0;
   clouds.position.copy(camera.position); clouds.rotation.y = t * .004;
   farGroup.position.set(camera.position.x, 0, camera.position.z); // horizon silhouettes ride with the camera — they used to sit at the world origin and the road ran straight into them after ~600 m
-  skyU.time.value = t; crowdTime.value = t; crowdTick(t); seaTex.offset.x = t * .01; seaTex.offset.y = t * .006; M2.water.normalMap.offset.set(t * .02, t * .012); M2.foam.opacity = .4 + Math.sin(t * 1.3) * .2;
+  skyU.time.value = t; grassTime.value = t; crowdTime.value = t; crowdTick(t); seaTex.offset.x = t * .01; seaTex.offset.y = t * .006; M2.water.normalMap.offset.set(t * .02, t * .012); M2.foam.opacity = .4 + Math.sin(t * 1.3) * .2;
   if (worldFade) { worldFade.t += dt / 2.5; look.cur = worldFade.from; applyWorld(worldFade.to, Math.min(1, worldFade.t)); if (worldFade.t >= 1) { look.cur = WORLDS[worldFade.to]; worldFade = null; } }
 
   if (state === 'menu') {
