@@ -811,11 +811,16 @@ function letter(seg, s, lane) {
 
 // ------------------------------------------------------------------ characters
 const loader = new GLTFLoader();
-const girlTemplates = [];
-async function loadGirls(onProgress) {
+// two wardrobes: look 1 (Burdayım video) and look 2 (styled by AGITÉ) — models/girlN.glb and models/look2/girlN.glb
+let LOOK = (new URLSearchParams(location.hash.slice(1)).get('look') || localStorage.getItem('od3_look')) === '2' ? 2 : 1;
+const LOOK_TPL = { 1: [], 2: [] };
+let girlTemplates = LOOK_TPL[LOOK];
+const faceSrc = i => LOOK === 2 ? `assets/f2_${i + 1}.jpg` : `assets/f${i + 1}.jpg`;
+async function loadGirls(onProgress, look = LOOK) {
+  const girlTemplates = LOOK_TPL[look]; const dir = look === 2 ? 'models/look2/' : 'models/';
   const frac = new Array(NGIRLS).fill(0);
   await Promise.all([...Array(NGIRLS)].map((_, i) => new Promise(res => {
-    loader.load(`models/girl${i + 1}.glb`, gltf => { girlTemplates[i] = prepGirl(gltf); frac[i] = 1; onProgress(frac.reduce((a, b) => a + b, 0) / NGIRLS); res(); },
+    loader.load(`${dir}girl${i + 1}.glb`, gltf => { girlTemplates[i] = prepGirl(gltf); frac[i] = 1; onProgress(frac.reduce((a, b) => a + b, 0) / NGIRLS); res(); },
       x => { if (x.total) { frac[i] = Math.min(.99, x.loaded / x.total); onProgress(frac.reduce((a, b) => a + b, 0) / NGIRLS); } }, () => { girlTemplates[i] = null; frac[i] = 1; res(); });
   })));
 }
@@ -959,7 +964,7 @@ function newRun() {
   if (player) scene.remove(player.holder);
   player = makeGirl(sel); scene.add(player.holder); player.holder.add(shield);
   playAct(player, 'run', 0, 1.15);
-  buildLetters(); $('hudFace').src = `assets/f${sel + 1}.jpg`; $('hudName').textContent = BAND[sel].name; $('itemName').textContent = BAND[sel].item;
+  buildLetters(); $('hudFace').src = faceSrc(sel); $('hudName').textContent = BAND[sel].name; $('itemName').textContent = BAND[sel].item;
   songs.forEach(a => a.volume = .8); downT = 0;
 }
 function startRun() {
@@ -975,7 +980,7 @@ function gameOver(reason) { // she falls; the band comes back for her
   for (const o of seg.objs) if (o.mesh && o.s > s - 4 && o.s < s + 6) o.mesh.visible = false; // clear the stage for the band
   const sc = Math.floor(score); const nb = sc > best; if (nb) { best = sc; localStorage.setItem('od3_best', best); }
   $('overScore').textContent = sc; $('overPicks').textContent = picks; $('overDist').textContent = Math.floor(dist); $('overBest').textContent = best;
-  $('newBest').classList.toggle('hide', !nb); $('overFace').src = `assets/f${sel + 1}.jpg`;
+  $('newBest').classList.toggle('hide', !nb); $('overFace').src = faceSrc(sel);
   $('overLine').textContent = `${BAND[sel].name} düştü ama yalnız değil.`; $('overItem').textContent = BAND[sel].item;
   $('hint').style.opacity = 0;
 }
@@ -1061,8 +1066,18 @@ $('bandBtn').onclick = () => $('band').classList.remove('hide');
 $('howBtn').onclick = () => $('how').classList.remove('hide');
 $('muteBtn').onclick = () => setMuted(!muted);
 document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => b.closest('.panel').classList.add('hide'));
-$('faces').innerHTML = [...Array(NGIRLS)].map((_, i) => `<button data-i="${i}" title="${BAND[i].name}"><img src="assets/f${i + 1}.jpg" alt="${BAND[i].name}"></button>`).join('');
-$('faces').querySelectorAll('button').forEach(b => b.onclick = () => selGirl(+b.dataset.i));
+function buildFaces() { $('faces').innerHTML = [...Array(NGIRLS)].map((_, i) => `<button data-i="${i}" title="${BAND[i].name}"><img src="${faceSrc(i)}" alt="${BAND[i].name}"></button>`).join(''); $('faces').querySelectorAll('button').forEach(b => b.onclick = () => selGirl(+b.dataset.i)); }
+buildFaces();
+function updateLookBtn() { $('lookBtn').classList.toggle('on', LOOK === 2); $('lookTxt').textContent = LOOK === 2 ? '1. LOOK' : '2. LOOK'; }
+let lookBusy = false;
+$('lookBtn').onclick = async () => { // AGITÉ button: switch the whole band to the other wardrobe
+  if (lookBusy || state !== 'menu') return; const next = LOOK === 2 ? 1 : 2;
+  if (!LOOK_TPL[next].length) { lookBusy = true; $('lookTxt').textContent = 'yükleniyor… 0%'; await loadGirls(p => $('lookTxt').textContent = `yükleniyor… ${Math.round(p * 100)}%`, next); lookBusy = false; }
+  if (!LOOK_TPL[next].some(Boolean)) { updateLookBtn(); return; }
+  LOOK = next; girlTemplates = LOOK_TPL[LOOK]; localStorage.setItem('od3_look', String(LOOK));
+  flash('#ffffff', .5); sfx(880, .12, 'triangle', .05, 300); buildFaces(); updateLookBtn(); toMenu();
+};
+updateLookBtn();
 
 // ------------------------------------------------------------------ menu scene: the whole band together
 const menuStage = new THREE.Group(); scene.add(menuStage);
@@ -1351,13 +1366,26 @@ function loadProps() {
   return Promise.all([one('models/props/gitar.glb', 1.0, 'y'), one('models/props/bas.glb', 1.15, 'y'), one('models/props/davul.glb', 1.9, 'x')])
     .then(([g, b, d]) => { PROPS.guitar = g; PROPS.bass = b; PROPS.drums = d; });
 }
+// the guitar model is one texture atlas: recolour its green body pixels on a canvas (cached per colour)
+const _gtCache = {};
+function tintedGuitarTex(map, tint) {
+  if (_gtCache[tint]) return _gtCache[tint]; const img = map.image; if (!img?.width) return map;
+  const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; const g = c.getContext('2d'); g.drawImage(img, 0, 0);
+  const d = g.getImageData(0, 0, c.width, c.height), px = d.data, tc = new THREE.Color(tint);
+  for (let k = 0; k < px.length; k += 4) { const r = px[k], gg = px[k + 1], b = px[k + 2]; if (gg > r * 1.15 && gg > b * 1.05 && gg > 40) { const l = gg / 255 * 1.25; px[k] = Math.min(255, tc.r * 255 * l); px[k + 1] = Math.min(255, tc.g * 255 * l); px[k + 2] = Math.min(255, tc.b * 255 * l); } }
+  g.putImageData(d, 0, 0); const t = new THREE.CanvasTexture(c); t.flipY = map.flipY; t.colorSpace = map.colorSpace; t.wrapS = map.wrapS; t.wrapT = map.wrapT; return (_gtCache[tint] = t);
+}
 function guitarProp(i, bass) {
   const tpl = bass ? PROPS.bass : PROPS.guitar;
   if (!tpl) { const g = new THREE.Group(); const body = new THREE.Mesh(new THREE.CylinderGeometry(.19, .21, .06, 20), GM.gtrBody[i % GM.gtrBody.length]); body.rotation.x = Math.PI / 2; g.add(body); return g; }
   const g = tpl.clone(true);
   // hang it so the body sits at the origin (≈ a quarter up from the bottom)
   const h = bass ? 1.15 : 1.0; g.children[0].position.y -= h * .24;
-  if (i === 4 && !bass) g.traverse(o => { if (o.isMesh && o.material?.color) { const c = o.material.color; if (c.g > c.r * 1.2 && c.g > c.b) { o.material = o.material.clone(); o.material.color.set(0xc4142c); } } }); // Öykü's guitar in red
+  // body colour per member and wardrobe (look 2 = the AGITÉ video: Sude black, Öykü blush pink, Umay pink bass)
+  const tint = bass ? (LOOK === 2 ? 0xf4b6c8 : null) : i === 4 ? (LOOK === 2 ? 0xe9b9ad : 0xc4142c) : (LOOK === 2 ? 0x161616 : null);
+  if (tint !== null) g.traverse(o => { if (!o.isMesh || !o.material) return;
+    if (bass) { if (o.material.name === 'Wood2Bass1') { o.material = o.material.clone(); o.material.color.set(tint); } }
+    else if (o.material.map) { o.material = o.material.clone(); o.material.map = tintedGuitarTex(o.material.map, tint); } });
   return g;
 }
 function drumKit() {
@@ -1409,7 +1437,7 @@ const GIG_SHOTS = [
   { t: 3, from: [-7, -.4, 2.6], to: [-4.6, -.2, 2.3], look: [1, 0, 2.1] },   // push in toward the stage
   { t: 5.2, from: [-2.4, -2.0, 2.3], to: [-1.9, -1.4, 2.2], look: [.9, -.3, 2.35] }, // three-quarter so the mic doesn't cover her face // Güneş close-up
   { t: 6.8, from: [-2.2, 4.4, 2.7], to: [-1.4, 3.4, 2.5], look: [2.6, 1.9, 1.9] },  // drums, from the front-right
-  { t: 8.3, from: [-1.8, -6.8, 1.8], to: [-1.8, -3.2, 1.9], look: [1.3, -3.4, 2.1] }, // guitar side track
+  { t: 8.3, from: [-3.0, -5.2, 2.6], to: [-2.4, -3.4, 2.4], look: [1.3, -3.4, 2.0] }, // guitarists, tracking in front of the stage (clear of the side speakers)
   { t: 9.8, from: [-5, 0, 2.3], to: [-13, 0, 5.8], look: [1.5, 0, 2.6] },     // crane out
 ];
 function gigCamera(dt, t) {
@@ -1541,6 +1569,7 @@ function frame() {
   await withTimeout(document.fonts.ready, 3000);
   const propsP = loadProps(); loadCrowdModels(); const envP = loadEnv();
   await loadGirls(p => { $('lbar').style.width = (p * 100) + '%'; $('ltxt').textContent = `karakterler yükleniyor… ${Math.round(p * 100)}%`; });
+  if (LOOK === 2 && !LOOK_TPL[2].some(Boolean)) { LOOK = 1; girlTemplates = LOOK_TPL[1]; localStorage.setItem('od3_look', '1'); buildFaces(); updateLookBtn(); await loadGirls(p => { $('lbar').style.width = (p * 100) + '%'; }); }
   await withTimeout(Promise.all([envP, propsP]), 8000);
   $('loading').classList.add('hide');
   if (params.has('sel')) sel = +params.get('sel');
