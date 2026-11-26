@@ -1217,7 +1217,15 @@ let AC = null;
 function ac() { if (!AC) try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { } if (AC?.state === 'suspended') AC.resume(); return AC; }
 function sfx(f, d = .08, type = 'square', v = .05, slide = 0) { const a = ac(); if (!a || muted) return; const o = a.createOscillator(), g = a.createGain(); o.type = type; o.frequency.value = f; if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, f + slide), a.currentTime + d); g.gain.value = v; g.gain.exponentialRampToValueAtTime(.0001, a.currentTime + d); o.connect(g).connect(a.destination); o.start(); o.stop(a.currentTime + d); }
 function noise(d, v, lp = 2000) { const a = ac(); if (!a || muted) return; const b = a.createBuffer(1, a.sampleRate * d, a.sampleRate), ch = b.getChannelData(0); for (let i = 0; i < ch.length; i++) ch[i] = (Math.random() * 2 - 1) * (1 - i / ch.length); const src = a.createBufferSource(), g = a.createGain(), f = a.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = lp; src.buffer = b; g.gain.value = v; src.connect(f).connect(g).connect(a.destination); src.start(); }
-function crowdCheer(dur = 2.4, vol = .22) { // synthesized crowd roar + scattered claps
+const SFX = {}, SFX_RAW = {};
+['coin', 'cheer', 'applause', 'whoosh', 'jump', 'thud', 'fall', 'power', 'badge'].forEach(n => fetch(`audio/sfx/${n}.mp3`).then(r => r.ok ? r.arrayBuffer() : null).then(b => { if (b) SFX_RAW[n] = b; }).catch(() => { }));
+function sample(n, vol = .5, rate = 1) { const a = ac(); if (!a || muted) return false;
+  if (!SFX[n] && SFX_RAW[n]) { const raw = SFX_RAW[n]; SFX_RAW[n] = null; SFX[n] = 'pending'; a.decodeAudioData(raw).then(buf => SFX[n] = buf).catch(() => SFX[n] = null); }
+  const buf = SFX[n]; if (!buf || buf === 'pending') return false;
+  const src = a.createBufferSource(), g = a.createGain(); src.buffer = buf; src.playbackRate.value = rate; g.gain.value = vol; src.connect(g); g.connect(a.destination); src.start(); return true; }
+function warmSfx() { for (const n of Object.keys(SFX_RAW)) if (SFX_RAW[n]) sample(n, 0); }
+function crowdCheer(dur = 2.4, vol = .22) { // real crowd recording when loaded, synthesized roar otherwise
+  if (sample('cheer', Math.min(1, vol * 3.2)) ) { sample('applause', Math.min(1, vol * 2.2)); return; }
   const a = ac(); if (!a || muted) return; const n = Math.floor(a.sampleRate * dur), b = a.createBuffer(1, n, a.sampleRate), ch = b.getChannelData(0);
   for (let i = 0; i < n; i++) { const t = i / n; ch[i] = (Math.random() * 2 - 1) * Math.min(1, t * 6) * (1 - t) ** 1.5; }
   for (let k = 0; k < 40; k++) { const st = Math.floor(rand(0, n * .85)), len = Math.floor(a.sampleRate * .02); for (let i = 0; i < len; i++) ch[st + i] += (Math.random() * 2 - 1) * (1 - i / len) * 1.4; }
@@ -1277,12 +1285,12 @@ function newRun() {
   songs.forEach(a => a.volume = .8); downT = 0;
 }
 function startRun() {
-  ac(); newRun(); state = 'run'; showUI('hud'); playSong(songIdx, 0);
+  ac(); warmSfx(); setTimeout(ghostStart, 0); newRun(); state = 'run'; showUI('hud'); playSong(songIdx, 0);
   hint(MOBILE ? 'sağa/sola kaydır: şerit · yukarı: zıpla · aşağı: kay ' : '← →  şerit · ↑ zıpla · ↓ kay ', 4); showMsg('KOŞ!', 1.2);
 }
 function gameOver(reason) { // she falls; the band comes back for her
   if (state !== 'run') return;
-  shake(.6, .5); hitStop = .12; flash('#ff2a3a', .45); buzz([60, 40, 160]); state = 'down'; downT = 0; downReason = reason; downReasonShown = false; noise(.5, .3, 900); sfx(80, .5, 'sawtooth', .1, -30);
+  sample('fall', .6); shake(.6, .5); hitStop = .12; flash('#ff2a3a', .45); buzz([60, 40, 160]); state = 'down'; downT = 0; downReason = reason; downReasonShown = false; noise(.5, .3, 900); sfx(80, .5, 'sawtooth', .1, -30);
   songs[songIdx].volume = .35;
   sliding = false; vy = 0;
   playAct(player, 'fall', .12, 1.15);
@@ -1291,6 +1299,8 @@ function gameOver(reason) { // she falls; the band comes back for her
   const sc = Math.floor(score); const nb = sc > best; if (nb) { best = sc; localStorage.setItem('od3_best', best); }
   $('overScore').textContent = sc; $('overPicks').textContent = picks; $('overDist').textContent = Math.floor(dist); $('overBest').textContent = best;
   $('newBest').classList.toggle('hide', !nb); $('overFace').src = faceSrc(sel); lbPrepare(sc); chalResult(sc);
+  unlock('first'); { const pl = new Set(JSON.parse(localStorage.getItem('od3_played') || '[]')); pl.add(sel); localStorage.setItem('od3_played', JSON.stringify([...pl])); if (pl.size >= 5) unlock('all5'); } if (CHAL && CHAL.vs && sc > CHAL.vs) unlock('chal');
+  ghostSave(nb);
   { const el = $('overScore'), t0 = performance.now(), D = 1100; const tick = () => { const k = Math.min(1, (performance.now() - t0) / D); el.textContent = Math.round(sc * (1 - Math.pow(1 - k, 3))); if (k < 1) requestAnimationFrame(tick); }; setTimeout(tick, 7400); el.textContent = '0';
     if (nb) setTimeout(confettiDom, 7600); }
   $('overLine').textContent = `${BAND[sel].name} düştü ama yalnız değil.`; $('overItem').textContent = BAND[sel].item;
@@ -1331,11 +1341,11 @@ function act(a) {
   if (a === 'left' || a === 'right') {
     const want = a === 'left' ? 'L' : 'R';
     if (!turnQ && s > seg.len - TURN_WIN && s < seg.len + 3 && want === seg.turn) { turnQ = want; sfx(700, .07, 'triangle', .05, 300); return; }
-    const nl = clamp(lane + (a === 'left' ? -1 : 1), -1, 1); if (nl !== lane) { lane = nl; sfx(520, .05, 'triangle', .04); }
+    const nl = clamp(lane + (a === 'left' ? -1 : 1), -1, 1); if (nl !== lane) { lane = nl; if (!sample('whoosh', .22, rand(1.05, 1.25))) sfx(520, .05, 'triangle', .04); }
   }
-  if (a === 'up' && py <= .001) { player.squash = -.16; vy = JUMP_V; sliding = false; sfx(380, .14, 'square', .04, 420); playAct(player, 'jump', .06, .3); }
+  if (a === 'up' && py <= .001) { player.squash = -.16; vy = JUMP_V; sliding = false; if (!sample('jump', .35, rand(.95, 1.08))) sfx(380, .14, 'square', .04, 420); playAct(player, 'jump', .06, .3); }
   if (a === 'down' && flyT > 0) return;
-  if (a === 'down') { if (py > .05) vy = -22; sliding = true; slideT = .8; sfx(260, .12, 'triangle', .05, -140); if (player.actions.slide) { playAct(player, 'slide', .08, 1.7); player.actions.slide.time = .15; } }
+  if (a === 'down') { if (py > .05) vy = -22; sliding = true; slideT = .8; if (!sample('whoosh', .3, .8)) sfx(260, .12, 'triangle', .05, -140); if (player.actions.slide) { playAct(player, 'slide', .08, 1.7); player.actions.slide.time = .15; } }
 }
 addEventListener('keydown', e => {
   const k = e.key;
@@ -1414,7 +1424,7 @@ function lbPrepare(sc) { // called when the game-over panel is filled in
   $('lbSaveBtn').disabled = false; $('lbSaveBtn').textContent = 'SKORU KAYDET'; $('lbName').value = localStorage.getItem('od3_name') || '';
 }
 $('lbSaveBtn').onclick = lbSave; $('lbName').addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') lbSave(); });
-$('lbBtn').onclick = lbShow; document.querySelectorAll('#lbTabs button').forEach(b => b.onclick = () => { lbTab = b.dataset.t; lbShow(); }); $('missChip').onclick = () => { missionsUI(); $('missions').classList.remove('hide'); }; $('setBtn').onclick = () => { settingsUI(); $('settings').classList.remove('hide'); }; document.querySelectorAll('#qBtns button').forEach(b => b.onclick = () => { if (b.dataset.q === QUALITY) return; localStorage.setItem('od3_q', b.dataset.q); location.reload(); }); $('wardBtn').onclick = openWard; document.querySelectorAll('#wardTabs button').forEach(b => b.onclick = () => { wardCat = b.dataset.c; renderWard(); }); $('storyBtn').onclick = storyCard; $('lbBtn').classList.toggle('hide', !lbOn());
+$('lbBtn').onclick = lbShow; document.querySelectorAll('#lbTabs button').forEach(b => b.onclick = () => { lbTab = b.dataset.t; lbShow(); }); $('missChip').onclick = () => { missionsUI(); $('missions').classList.remove('hide'); }; document.querySelectorAll('#missTabs button').forEach(b => b.onclick = () => { document.querySelectorAll('#missTabs button').forEach(x => x.classList.toggle('on', x === b)); $('missList').classList.toggle('hide', b.dataset.m !== 'g'); $('badgeGrid').classList.toggle('hide', b.dataset.m !== 'b'); }); $('setBtn').onclick = () => { settingsUI(); $('settings').classList.remove('hide'); }; document.querySelectorAll('#qBtns button').forEach(b => b.onclick = () => { if (b.dataset.q === QUALITY) return; localStorage.setItem('od3_q', b.dataset.q); location.reload(); }); $('wardBtn').onclick = openWard; document.querySelectorAll('#wardTabs button').forEach(b => b.onclick = () => { wardCat = b.dataset.c; renderWard(); }); $('storyBtn').onclick = storyCard; $('lbBtn').classList.toggle('hide', !lbOn());
 document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => b.closest('.panel').classList.add('hide'));
 function buildFaces() { $('faces').innerHTML = [...Array(NGIRLS)].map((_, i) => `<button data-i="${i}" title="${BAND[i].name}"><img src="${faceSrc(i)}" alt="${BAND[i].name}"></button>`).join(''); $('faces').querySelectorAll('button').forEach(b => b.onclick = () => selGirl(+b.dataset.i)); }
 buildFaces();
@@ -1432,6 +1442,7 @@ updateLookBtn();
 // ------------------------------------------------------------------ menu scene: the whole band together
 const menuStage = new THREE.Group(); scene.add(menuStage);
 function toMenu() {
+  if (typeof ghost !== 'undefined' && ghost) { scene.remove(ghost.holder); ghost = null; }
   state = 'menu'; showUI('menu'); clearTrack(); clearFriends(); if (player) { scene.remove(player.holder); player = null; }
   songs.forEach(a => { a.pause(); a.volume = .8; });
   genWorld = 'beach'; setWorld('beach', true);
@@ -1694,10 +1705,10 @@ function collide(dt) {
 function collect(o) {
   o.done = true; o.mesh.getWorldPosition(tmp2); burst(tmp2, o.t === 'coin' ? 0xffd36b : o.t === 'letter' ? 0xffffff : 0xffb040, o.t === 'coin' ? 10 : 22); o.mesh.parent?.remove(o.mesh);
   if (o.t === 'coin') { picks++; combo++; comboT = COMBO_WIN; const cm = Math.min(4, 1 + Math.floor(combo / 10)); if (cm > comboMult) { comboMult = cm; showMsg(`KOMBO x${cm}!`, 1.1); sfx(660 + cm * 110, .25, 'triangle', .07, 300); buzz(25); } comboBest = Math.max(comboBest, combo);
-    const pts = 10 * mult * comboMult; score += pts; sfx(1250 + (picks % 6) * 70, .06, 'square', .03); popText(tmp2, '+' + pts, comboMult > 1 || mult === 2 ? 'gold' : ''); flyToCounter(tmp2); }
-  else if (o.t === 'sun') { popText(tmp2, 'GÜNEŞ', 'big'); sunT = 6; gap = 1; flash('#ffd36b', .55); showMsg('BİR GÜNEŞ DOĞAR…', 1.8); sfx(523, .4, 'sine', .08, 520); setTimeout(() => sfx(784, .5, 'sine', .07, 300), 120); }
-  else if (o.t === 'mod') { flyT = 5; magnet = Math.max(magnet, 5); vy = 0; sliding = false; flash('#f7c41f', .5); showMsg('MODUNDASIN!', 1.8); buzz(60); sfx(392, .5, 'sawtooth', .05, 900); setTimeout(() => sfx(784, .4, 'triangle', .06, 400), 140); }
-  else if (o.t === 'mic') { popText(tmp2, 'MİKROFON', 'big'); magnet = 9; showMsg('MİKROFON!', 1.2); sfx(880, .35, 'sawtooth', .04, 700); }
+    const pts = 10 * mult * comboMult; score += pts; if (!sample('coin', .32, 1 + Math.min(6, combo % 12) * .035)) sfx(1250 + (picks % 6) * 70, .06, 'square', .03); popText(tmp2, '+' + pts, comboMult > 1 || mult === 2 ? 'gold' : ''); flyToCounter(tmp2); }
+  else if (o.t === 'sun') { sample('power', .45, 1.1); popText(tmp2, 'GÜNEŞ', 'big'); sunT = 6; gap = 1; flash('#ffd36b', .55); showMsg('BİR GÜNEŞ DOĞAR…', 1.8); sfx(523, .4, 'sine', .08, 520); setTimeout(() => sfx(784, .5, 'sine', .07, 300), 120); }
+  else if (o.t === 'mod') { sample('power', .5, .75); sample('whoosh', .4, .6); flyT = 5; magnet = Math.max(magnet, 5); vy = 0; sliding = false; flash('#f7c41f', .5); showMsg('MODUNDASIN!', 1.8); buzz(60); sfx(392, .5, 'sawtooth', .05, 900); setTimeout(() => sfx(784, .4, 'triangle', .06, 400), 140); }
+  else if (o.t === 'mic') { sample('power', .45, .9); popText(tmp2, 'MİKROFON', 'big'); magnet = 9; showMsg('MİKROFON!', 1.2); sfx(880, .35, 'sawtooth', .04, 700); }
   else if (o.t === 'letter') {
     const word = [...SONGS[songIdx].word];
     if (!letterGot.has(o.idx)) { letterGot.add(o.idx); buzz(30); sfx(990, .12, 'triangle', .06, 200); buildLetters();
@@ -1707,7 +1718,7 @@ function collect(o) {
 function smash(o) { o.mesh.parent?.remove(o.mesh); noise(.2, .2, 3000); score += 25; }
 function stumble(o) {
   if (stumbleT > 0) { gameOver('İki kez tökezleyip düştün.'); return; }
-  comboBreak(); shake(.35, .35); hitStop = .07; flash('#ff2a3a', .35); buzz(120); stumbleT = 4.5; gap = .2; noise(.25, .25, 1200); sfx(90, .3, 'sawtooth', .08, -40); showMsg('GÖLGE YAKLAŞIYOR!', 1.4);
+  comboBreak(); sample('thud', .55); shake(.35, .35); hitStop = .07; flash('#ff2a3a', .35); buzz(120); stumbleT = 4.5; gap = .2; noise(.25, .25, 1200); sfx(90, .3, 'sawtooth', .08, -40); showMsg('GÖLGE YAKLAŞIYOR!', 1.4);
   lane = clamp(Math.round(lat / LANE) + (lat > o.lane * LANE ? 1 : -1) * 0, -1, 1);
 }
 let lastHud = 0;
@@ -1792,8 +1803,44 @@ function missionsToday() { const k = todayKey(); if (MS.date !== k) { let h = 0;
 let missT = 0;
 function missionTick(dt) { if (state !== 'run' && state !== 'gig' && state !== 'photo') return; missT -= dt; if (missT > 0) return; missT = .4;
   for (const m of missionsToday()) if (!MS.done.includes(m.id) && m.ok()) { MS.done.push(m.id); localStorage.setItem('od3_missions', JSON.stringify(MS)); bank += m.r; localStorage.setItem('od3_bank', bank);
-    const tt = $('toast'); if (tt) { tt.innerHTML = `🎯 GÖREV TAMAM <b>+${m.r} 🎸</b><span>${m.t}</span>`; tt.classList.remove('show'); void tt.offsetWidth; tt.classList.add('show'); } sfx(784, .3, 'triangle', .07, 400); buzz(30); } }
-function missionsUI() { const ms = missionsToday(), done = ms.filter(m => MS.done.includes(m.id)).length; if ($('missChip')) $('missChip').textContent = `🎯 GÖREV ${done}/${ms.length}`;
+    toast(`🎯 GÖREV TAMAM <b>+${m.r} 🎸</b><span>${m.t}</span>`); if (!sample('badge', .5)) sfx(784, .3, 'triangle', .07, 400); buzz(30); } }
+let ghost = null, ghostRec = [], runT = 0, ghostAhead = null;
+function ghostStart() { ghostRec = []; runT = 0; ghostAhead = null; if (ghost) { scene.remove(ghost.holder); ghost = null; }
+  let g = null; try { g = JSON.parse(localStorage.getItem('od3_ghost') || 'null'); } catch (e) { } if (!g || !g.s?.length) return;
+  const m = makeGirl(g.m); m.holder.traverse(o => { if (o.isMesh && o.material) { o.material = (Array.isArray(o.material) ? o.material[0] : o.material).clone(); Object.assign(o.material, { transparent: true, opacity: .28, depthWrite: false }); o.material.color?.multiply(new THREE.Color(.7, .95, 1.2)); if (o.material.emissive) { o.material.emissive.set(0x3aa8ff); o.material.emissiveIntensity = .55; } o.castShadow = false; } });
+  playAct(m, 'run', 0, 1.15); scene.add(m.holder); ghost = { ...m, data: g }; }
+function ghostTick(dt) { if (state !== 'run') return; runT += dt; if (!ghostRec.length || runT - ghostRec[ghostRec.length - 1][0] > .25) ghostRec.push([+runT.toFixed(2), Math.round(dist * 10) / 10, +lat.toFixed(2), +py.toFixed(2)]);
+  if (!ghost) return; const S = ghost.data.s; let i = 0; while (i < S.length - 1 && S[i + 1][0] < runT) i++; const a = S[i], b = S[Math.min(i + 1, S.length - 1)], k = b[0] > a[0] ? Math.min(1, (runT - a[0]) / (b[0] - a[0])) : 0;
+  const gd = a[1] + (b[1] - a[1]) * k, gl = a[2] + (b[2] - a[2]) * k, gy = a[3] + (b[3] - a[3]) * k, off = gd - dist, gs = s + off, ahead = off > 0;
+  if (ghostAhead !== null && ghostAhead && !ahead && runT > 3) { showMsg('REKORUNU GEÇİYORSUN!', 1.6); flash('#4de1ff', .25); }
+  ghostAhead = ahead; const vis = runT < S[S.length - 1][0] && Math.abs(off) > 1.6 && Math.abs(off) < 40 && gs > 1 && gs < seg.len - 1;
+  ghost.holder.visible = vis; if (vis) { segPoint(seg, gs, gl, tmp); ghost.holder.position.set(tmp.x, gy, tmp.z); ghost.holder.rotation.y = yawOf(seg.dir); ghost.mixer?.update(dt); } }
+function ghostSave(isBest) { if (ghost) { scene.remove(ghost.holder); ghost = null; } if (!isBest || ghostRec.length < 8) return; let s = ghostRec; while (s.length > 1400) s = s.filter((_, i) => i % 2 === 0);
+  try { localStorage.setItem('od3_ghost', JSON.stringify({ m: sel, s })); } catch (e) { } }
+function toast(html) { const tt = $('toast'); if (!tt) return; tt.innerHTML = html; tt.classList.remove('show'); void tt.offsetWidth; tt.classList.add('show'); }
+const BADGES = [
+  { id: 'first', ic: '🏃', t: 'İlk koşu', d: 'Bir koşuyu bitir' },
+  { id: 'd1000', ic: '🛣️', t: '1 kilometre', d: 'Tek koşuda 1000 m' },
+  { id: 'd3000', ic: '🚀', t: '3 kilometre', d: 'Tek koşuda 3000 m' },
+  { id: 'combo4', ic: '🔥', t: 'Kombo kralı', d: 'x4 komboya ulaş' },
+  { id: 'gig', ic: '🎤', t: 'İlk konser', d: 'BURDAYIM\'ı tamamla' },
+  { id: 'photo', ic: '📸', t: 'Mükemmel kare', d: 'Hayran fotoğrafında 100 puan' },
+  { id: 's5k', ic: '⭐', t: '5.000 puan', d: 'Tek koşuda 5.000 puan' },
+  { id: 's15k', ic: '🌟', t: '15.000 puan', d: 'Tek koşuda 15.000 puan' },
+  { id: 'p100', ic: '🎸', t: 'Koleksiyoncu', d: 'Tek koşuda 100 eşya' },
+  { id: 'fly', ic: '💿', t: 'Modundasın', d: 'Modundayız plağıyla uç' },
+  { id: 'beach', ic: '🌅', t: 'Gün batımı', d: 'Kumsala ulaş' },
+  { id: 'concert', ic: '🎆', t: 'Sahne ışıkları', d: 'Konser alanına ulaş' },
+  { id: 'all5', ic: '🤘', t: 'Tam kadro', d: 'Beş üyeyle de koş' },
+  { id: 'chal', ic: '⚔️', t: 'Meydan okuyan', d: 'Bir meydan okumayı kazan' },
+];
+const BADGE_OK = { d1000: () => dist >= 1000, d3000: () => dist >= 3000, combo4: () => comboMult >= 4, gig: () => state === 'gig', s5k: () => score >= 5000, s15k: () => score >= 15000, p100: () => picks >= 100, fly: () => flyT > 0, beach: () => curWorld === 'beach' && state === 'run', concert: () => curWorld === 'concert' && state === 'run' };
+let BG = JSON.parse(localStorage.getItem('od3_badges') || '{}');
+function unlock(id) { if (BG[id]) return; const b = BADGES.find(x => x.id === id); if (!b) return; BG[id] = Date.now(); localStorage.setItem('od3_badges', JSON.stringify(BG)); setTimeout(() => { toast(`🏅 YENİ ROZET <b>${b.ic} ${b.t}</b><span>${b.d}</span>`); if (!sample('badge', .5, 1.2)) sfx(988, .3, 'triangle', .07, 300); }, 300); }
+let badgeT = 0;
+function badgeTick(dt) { if (state !== 'run' && state !== 'gig') return; badgeT -= dt; if (badgeT > 0) return; badgeT = .5; for (const k in BADGE_OK) if (!BG[k] && BADGE_OK[k]()) unlock(k); }
+function badgesUI() { $('badgeGrid').innerHTML = BADGES.map(b => `<div class="bdg${BG[b.id] ? ' on' : ''}"><i>${BG[b.id] ? b.ic : '🔒'}</i><b>${b.t}</b><span>${b.d}</span></div>`).join(''); }
+function missionsUI() { const ms = missionsToday(), done = ms.filter(m => MS.done.includes(m.id)).length; if ($('missChip')) $('missChip').textContent = `🎯 ${done}/${ms.length} · 🏅 ${Object.keys(BG).length}`; if ($('badgeGrid')) badgesUI();
   if ($('missList')) $('missList').innerHTML = ms.map(m => `<li class="${MS.done.includes(m.id) ? 'ok' : ''}"><i>${MS.done.includes(m.id) ? '✓' : '○'}</i><span>${m.t}</span><b>+${m.r} 🎸</b></li>`).join(''); }
 function settingsUI() { document.querySelectorAll('#qBtns button').forEach(b => b.classList.toggle('on', b.dataset.q === QUALITY)); }
 function confettiDom() { const box = $('over'); for (let i = 0; i < 70; i++) { const c = document.createElement('i'); c.className = 'conf'; c.style.left = rand(5, 95) + '%'; c.style.background = pick(['#ff4fa3', '#4de1ff', '#ffd23a', '#a66bff', '#fff']); c.style.animationDelay = rand(0, .6) + 's'; c.style.setProperty('--x', rand(-120, 120) + 'px'); c.style.setProperty('--r', rand(-720, 720) + 'deg'); box.appendChild(c); setTimeout(() => c.remove(), 3200); } }
@@ -2140,7 +2187,7 @@ function updatePhoto(dt, t) {
 function shoot() {
   const P = photo; if (!P || P.phase !== 'aim') return;
   const d = Math.abs(P.needle - .5); const [pts, label] = d < .05 ? [100, 'MÜKEMMEL!'] : d < .14 ? [60, 'SÜPER'] : d < .28 ? [30, 'İYİ'] : [10, 'BULANIK'];
-  P.total += pts; score += pts; P.phase = 'after'; P.t = 0;
+  P.total += pts; score += pts; P.phase = 'after'; P.t = 0; if (pts === 100) unlock('photo');
   flash('#ffffff', .9); sfx(2200, .05, 'square', .06); setTimeout(() => sfx(1400, .06, 'square', .05), 70); noise(.08, .12, 5000);
   P.fan.play(P.fan.act?.clapping ? 'clapping' : 'wave'); $('photoRes').textContent = `${label} +${pts}`; $('photoBar').classList.add('dim'); buzz(40);
   captureNext = { n: P.n + 1, pts, label };
@@ -2212,7 +2259,7 @@ function updateParticles(dt) {
       else if (!st.armed && y > st.min + .14) st.armed = true; }); }
   for (let i = 0; i < SMAX; i++) { if (sLife[i] <= 0) { if (sPos[i * 3 + 1] > -50) sPos[i * 3 + 1] = -99; continue; } sLife[i] -= dt; sVel[i * 3 + 1] -= sGrav[i] * dt; const drag = 1 - Math.min(1, dt * 1.8); sVel[i * 3] *= drag; sVel[i * 3 + 2] *= drag;
     sPos[i * 3] += sVel[i * 3] * dt; sPos[i * 3 + 1] = Math.max(.02, sPos[i * 3 + 1] + sVel[i * 3 + 1] * dt); sPos[i * 3 + 2] += sVel[i * 3 + 2] * dt; if (sLife[i] <= 0) sPos[i * 3 + 1] = -99; }
-  ambience(dt); trailFx(dt); missionTick(dt);
+  ambience(dt); trailFx(dt); missionTick(dt); badgeTick(dt); ghostTick(dt);
   blob.visible = (state === 'run' || state === 'down') && !!player; if (blob.visible) { const p = player.holder.position; blob.position.set(p.x, .025, p.z); const k = 1 / (1 + py * .35); blob.scale.setScalar(k); blob.material.opacity = Math.max(.15, k); }
   sGeo.attributes.position.needsUpdate = true; sGeo.attributes.color.needsUpdate = true;
   for (let i = 0; i < PMAX; i++) { if (pLife[i] <= 0) { pPos[i * 3 + 1] = -99; continue; } pLife[i] -= dt; pVel[i * 3 + 1] -= 9 * dt;

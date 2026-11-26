@@ -199,6 +199,11 @@
   #toast b{color:#fff;margin-left:6px}#toast span{display:block;color:#fff;font-weight:600;letter-spacing:0;margin-top:2px;opacity:.85}
   #toast.show{animation:toast 2.8s ease-out}
   @keyframes toast{0%{opacity:0;transform:translate(-50%,-20px)}10%,80%{opacity:1;transform:translate(-50%,0)}100%{opacity:0;transform:translate(-50%,-10px)}}
+  .bgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;text-align:left;max-height:52vh;overflow:auto}
+  .bdg{position:relative;padding:10px 10px 10px 46px;border-radius:14px;background:var(--glass2);border:1px solid var(--line);opacity:.5;min-height:58px}
+  .bdg.on{opacity:1;border-color:rgba(255,207,74,.5);background:rgba(255,207,74,.08)}
+  .bdg i{position:absolute;left:10px;top:10px;font-style:normal;font-size:22px}
+  .bdg b{display:block;font-family:Anton,Impact;font-weight:400;font-size:14px;letter-spacing:.03em}.bdg span{font-size:11px;opacity:.8}
   .misslist{list-style:none;padding:0;margin:8px 0 0;text-align:left}
   .misslist li{display:grid;grid-template-columns:28px 1fr auto;align-items:center;gap:8px;padding:12px 10px;border-radius:14px;background:var(--glass2);border:1px solid var(--line);margin-bottom:8px;font-weight:700;font-size:14px}
   .misslist li i{font-style:normal;font-size:18px;color:var(--gold);text-align:center}.misslist li b{color:var(--gold);font-size:13px}
@@ -324,7 +329,7 @@
     .odlogo{width:min(32vw,150px)}
     .logo .sub span{font-size:30px}.ask span{font-size:17px}
     .faces button{width:42px;height:42px}#goBtn{font-size:24px;padding:7px 46px}
-    .odlogo{width:min(28vw,120px)}.sheet{gap:6px!important}.chal{font-size:11px;padding:4px 10px}.chal b{font-size:13px}.chip{height:28px}#missChip,.chip.agite{height:32px}.ask{margin-top:6px}
+    .odlogo{width:min(28vw,120px)}.sheet{gap:6px!important}.chal{font-size:11px;padding:4px 10px}.chal b{font-size:13px}.chip{height:28px}#missChip,.chip.agite{height:36px}.ask{margin-top:6px}
   }
   @media (min-aspect-ratio:5/4){
     .sheet{margin:0!important;width:auto!important;border-radius:26px!important;background:rgba(20,8,24,.62)!important;border:1px solid var(--line);backdrop-filter:blur(10px);padding:14px 16px!important;bottom:4vh!important}
@@ -417,7 +422,7 @@
     <li>Styling <span>AGITÉ</span></li>
     <li>Backstage Fotoğraf &amp; Video <span>Berkin Üregen, Yeliz Yılmaz, Ahmet Yılmaz</span></li>
   </ul>
-  <p style="font-size:11px;opacity:.55;margin-top:10px">Oyundaki 3D modeller (poly.pizza): “Electric guitar”, mikrofon, baget, pena, amfi, bank, can simidi, kumdan kale, yelkenli, gül çalısı, çimen, dönme dolap, ağaç – Poly by Google; “Bass Guitar”, voleybol topu – Zsky; “Full Drum Kit” – Batoski; plaj şemsiyeleri ve şezlonglar – S. Paul Michael; cankurtaran kulesi – Daniel Doran; plaj kulübesi – Pixel; plaj topu – the_normalgamer; saksı, çadır – J-Toastie; yelkenli – jeremy; çalı – Jarlan Perez; yemek kamyonu – yang leo; yuvarlak taçlı ağaç – Marc Solà (hepsi CC-BY 3.0). Binalar, kasalar, bariyerler, iskele, otlar, çevre, seyirci ve hayran modelleri – Quaternius, Kay Lousberg, iPoly3D (CC0).</p>
+  <p style="font-size:11px;opacity:.55;margin-top:10px">Oyundaki 3D modeller (poly.pizza): “Electric guitar”, mikrofon, baget, pena, amfi, bank, can simidi, kumdan kale, yelkenli, gül çalısı, çimen, dönme dolap, ağaç – Poly by Google; “Bass Guitar”, voleybol topu – Zsky; “Full Drum Kit” – Batoski; plaj şemsiyeleri ve şezlonglar – S. Paul Michael; cankurtaran kulesi – Daniel Doran; plaj kulübesi – Pixel; plaj topu – the_normalgamer; saksı, çadır – J-Toastie; yelkenli – jeremy; çalı – Jarlan Perez; yemek kamyonu – yang leo; yuvarlak taçlı ağaç – Marc Solà (hepsi CC-BY 3.0). Ses efektleri: Freesound.org (CC0) – IENBA, FoolBoyMedia, Bansemer, florianreichelt, Leszek_Szary, xggw, Jofae, suntemple. Binalar, kasalar, bariyerler, iskele, otlar, çevre, seyirci ve hayran modelleri – Quaternius, Kay Lousberg, iPoly3D (CC0).</p>
   <h3>OYUNDAKİ DÜNYALAR</h3>
   <p><b>Burdayım:</b> Şarkı boyunca yeşillik bir yoldan taş sokaklara, oradan gün batımında kumsala, en sonunda OD Band konser alanına koşuyorsun. Dünyalar koşarken birbirine bağlanıyor. İplerde beyaz çarşaflar, yolda turne kasaları. Güneşi topla: “Bir güneş doğar, ben burdayım.” Nakaratlarda puan ikiye katlanır.</p>
   <p style="margin-top:22px"><button class="go" data-close>Tamam</button></p>
@@ -452,9 +457,11 @@
 </div></div>
 
 <div id="missions" class="panel hide"><div class="card">
-  <h2>GÜNÜN GÖREVLERİ</h2>
-  <p class="sub2">Her gün yeni 3 görev. Tamamlayınca kasaya 🎸 eklenir.</p>
+  <h2>GÖREVLER</h2>
+  <div id="missTabs" class="tabs"><button data-m="g" class="on">Bugünün görevleri</button><button data-m="b">Rozetler</button></div>
   <ul id="missList" class="misslist"></ul>
+  <div id="badgeGrid" class="bgrid hide"></div>
+  <p class="sub2" style="margin-top:10px">Görevler her gün yenilenir; tamamlayınca kasaya 🎸 eklenir.</p>
   <p style="margin-top:16px"><button class="go" data-close>Tamam</button></p>
 </div></div>
 
@@ -510,6 +517,6 @@
 
 <div id="loading"><div><img src="assets/logo_red.png" alt="OD Band" style="width:min(56vw,260px);display:block;margin:0 auto 6px"><div class="lbar"><i id="lbar"></i></div><small id="ltip" class="ltip"></small><small id="ltxt">yükleniyor…</small></div></div>
 
-<script type="module" src="game.js?v=20261201c"></script>
+<script type="module" src="game.js?v=20261201f"></script>
 </body>
 </html>
