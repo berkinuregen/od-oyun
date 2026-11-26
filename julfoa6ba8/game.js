@@ -72,7 +72,11 @@ const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, .1, 120
 const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(innerWidth, innerHeight, { type: THREE.HalfFloatType, samples: MOBILE ? 0 : 4 }));
 composer.addPass(new RenderPass(scene, camera));
 const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), .55, .45, 1.15);
-composer.addPass(bloom);
+// guard: a single NaN/Inf pixel (bad normal, 0/0 in a shader) gets smeared by the bloom blur into big flickering black squares
+const nanGuard = new ShaderPass({ uniforms: { tDiffuse: { value: null } }, vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: 'uniform sampler2D tDiffuse; varying vec2 vUv; void main(){ vec4 c = texture2D(tDiffuse, vUv); if (any(isnan(c)) || any(isinf(c))) c = vec4(0.0, 0.0, 0.0, 1.0); gl_FragColor = vec4(min(c.rgb, vec3(64.0)), c.a); }' });
+if (!location.hash.includes('noguard')) composer.addPass(nanGuard);
+composer.addPass(bloom); if (location.hash.includes('nobloom')) bloom.enabled = false;
 composer.addPass(new OutputPass());
 const fxaa = new ShaderPass(FXAAShader); fxaa.enabled = MOBILE; composer.addPass(fxaa);
 
@@ -386,7 +390,7 @@ function worldAt(seg, s) { return seg.from && s < seg.mid ? seg.from : seg.world
 
 // builds road, ground and scenery of world `w` for the stretch a..b of a segment
 function buildPart(seg, w, a, b, isStart, isEnd) {
-  const H = ROAD_W / 2, gy = seg.gy; fillLand(seg, w, a, b);
+  const H = ROAD_W / 2, gy = seg.gy; if (!params.has('nofill')) fillLand(seg, w, a, b);
   const ga = isStart ? a - 4 : a, gb = isEnd ? b + 30 : b; // ground extends past the ends
   const inPart = s => s >= a + 1 && s <= b - 1 && s > 9 && s < seg.len - 9; // also keep corners clear
   const range = (start, step, fn) => { for (let s = a + start; s < b; s += step()) if (inPart(s)) fn(s); };
@@ -638,11 +642,16 @@ const ENV = {};
 const ENV_FILES = { tree1: 'tree1', tree2: 'tree2', tree3: 'tree3', tree4: 'tree4', pines: 'pines', palm: 'palm', rock1: 'rock1', rock2: 'rock2', hedge: 'hedge', flowers: 'flowers', fence: 'fence', lamp: 'lamp', barrel: 'barrel', speaker: 'speaker' };
 function loadEnv() {
   return Promise.all(Object.entries(ENV_FILES).map(([k, f]) => new Promise(res => loader.load(`models/env/${f}.glb`, g => {
-    const sc = g.scene; sc.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; if (o.material) { o.material.metalness = 0; o.material.roughness = Math.max(.75, o.material.roughness ?? 1); } } }); // no env map: metal-ish exports looked blown out
+    const fx = fixNormals(g.scene); if (fx && params.has('pickc')) console.log('FIXN ' + k + ' ' + fx); const sc = g.scene; sc.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; if (o.material) { o.material.metalness = 0; o.material.roughness = Math.max(.75, o.material.roughness ?? 1); } } }); // no env map: metal-ish exports looked blown out
     const b = new THREE.Box3().setFromObject(sc), sz = b.getSize(new THREE.Vector3()), c = b.getCenter(new THREE.Vector3());
     const w = new THREE.Group(); sc.position.set(-c.x, -b.min.y, -c.z); w.add(sc); w.userData.size = sz; sc.traverse(o => { if (o.geometry) o.geometry.userData.keep = true; }); ENV[k] = w; res();
   }, undefined, () => res()))));
 }
+// bad normals (zero/NaN) give NaN pixels, which the bloom pass smears into flickering black squares
+function fixNormals(root) { let n = 0; root.traverse(o => { const g = o.geometry; if (!g?.attributes?.position) return; const nr = g.attributes.normal;
+  let bad = !nr; if (nr) for (let i = 0; i < nr.count && !bad; i++) { const x = nr.getX(i), y = nr.getY(i), z = nr.getZ(i), l = x * x + y * y + z * z; if (!(l > 1e-8) || !isFinite(l)) bad = true; }
+  if (!bad) return; n++; g.computeVertexNormals(); const a = g.attributes.normal; for (let i = 0; i < a.count; i++) { const x = a.getX(i), y = a.getY(i), z = a.getZ(i), l = x * x + y * y + z * z; if (!(l > 1e-8) || !isFinite(l)) a.setXYZ(i, 0, 1, 0); } a.needsUpdate = true; });
+  return n; }
 const ENV_EXTRA = ['house1', 'house2', 'house3', 'house4', 'umb1', 'umb2', 'umb3', 'lounger1', 'lounger2', 'lifeguard', 'beachhut', 'beachball', 'lifebuoy', 'crate1', 'crate2', 'crate3', 'planter', 'sandcastle', 'barricade', 'sawhorse', 'crowdbar', 'jersey', 'mic', 'drumstick', 'guitarpick', 'amp', 'amp2', 'parcan', 'ledpanel', 'bench', 'volleyball', 'sail1', 'sail2', 'rowboat', 'grass', 'grass2', 'drygrass', 'drygrass2', 'bush2', 'rosebush', 'flowerbush', 'stone', 'desertrocks', 'tent', 'ferris', 'pier', 'tree6', 'foodtruck'];
 // bake all meshes of a model into one geometry (world transforms applied); with colours=true, material colours go to vertex colours
 function bakeGeo(root, colours) {
@@ -660,7 +669,7 @@ function flatten(scene) { // one mesh, one material — unless the model is text
 }
 function loadEnvExtra() {
   return Promise.all(ENV_EXTRA.map(k => new Promise(res => loader.load(`models/env/${k}.glb`, g => {
-    const sc = flatten(g.scene); sc.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; if (o.material && !o.material.vertexColors) { o.material.metalness = 0; o.material.roughness = Math.max(.6, o.material.roughness ?? 1); } } });
+    const fx = fixNormals(g.scene); if (fx && params.has('pickc')) console.log('FIXN ' + k + ' ' + fx); const sc = flatten(g.scene); sc.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; if (o.material && !o.material.vertexColors) { o.material.metalness = 0; o.material.roughness = Math.max(.6, o.material.roughness ?? 1); } } });
     const b = new THREE.Box3().setFromObject(sc), sz = b.getSize(new THREE.Vector3()), c = b.getCenter(new THREE.Vector3());
     const w = new THREE.Group(); sc.position.set(-c.x, -b.min.y, -c.z); w.add(sc); w.userData.size = sz; sc.traverse(o => { if (o.geometry) o.geometry.userData.keep = true; }); ENV[k] = w;
     if (k === 'drumstick') { const geo = bakeGeo(g.scene); geo.center(); const bb = new THREE.Box3().setFromBufferAttribute(geo.attributes.position).getSize(new THREE.Vector3()); geo.scale(1.15 / bb.y, 1.15 / bb.y, 1.15 / bb.y); G.sticks = mergeGeometries([geo.clone().rotateZ(.5), geo.clone().rotateZ(-.5)]); }
@@ -672,7 +681,7 @@ const pickEnv = (...ks) => { const ok = ks.filter(k => ENV[k]); return ok.length
 function envClone(k, size, axis = 'y') { const t = ENV[k]; if (!t) return null; const m = t.clone(true); m.userData.k = k; m.scale.setScalar(size / t.userData.size[axis]); return m; }
 const _im = new THREE.Matrix4(), _iq = new THREE.Quaternion(), _is = new THREE.Vector3(), _ip = new THREE.Vector3(), _iy = new THREE.Vector3(0, 1, 0), _iinv = new THREE.Matrix4();
 function scatter(seg, k, items, shadow = false) { // items: [s, lat, height, yaw, y]
-  const t = ENV[k]; if (!t || !items.length) return; t.updateMatrixWorld(true); _iinv.copy(t.matrixWorld).invert();
+  const t = ENV[k]; if (!t || !items.length) return; if (params.get('only') && params.get('only') !== k) return; t.updateMatrixWorld(true); _iinv.copy(t.matrixWorld).invert();
   const meshes = []; t.traverse(o => { if (o.isMesh) meshes.push(o); });
   for (const o of meshes) { const rel = new THREE.Matrix4().multiplyMatrices(_iinv, o.matrixWorld); const im = new THREE.InstancedMesh(o.geometry, o.material, items.length);
     items.forEach((it, i) => { _iq.setFromAxisAngle(_iy, it[3] ?? rand(0, 6.28)); _im.compose(_ip.set(it[1], it[4] || 0, -it[0]), _iq, _is.setScalar(it[2] / t.userData.size.y)); _im.multiply(rel); im.setMatrixAt(i, _im); });
@@ -1839,7 +1848,7 @@ function frame() {
         for (const r of segs) { inv.copy(r.group.matrixWorld).invert(); lb.copy(box).applyMatrix4(inv); const ov = Math.min(lb.max.x, H - .2) - Math.max(lb.min.x, -H + .2), ovz = Math.min(lb.max.z, H) - Math.max(lb.min.z, -r.len - H);
           if (ov > 0 && ovz > 0 && box.max.y > .1 && box.min.y < 3.5) { let k = ch.userData.k; ch.traverse(o => { k ||= o.userData.k; }); k ||= (ch.isMesh ? 'mesh:' + ch.geometry.type : 'group' + ch.children.length); k += ' w=' + r.world + (r === sg ? '' : ' OTHERSEG ' + sg.n + '>' + r.n + ' ' + [lb.min.x, lb.max.x, lb.min.z, lb.max.z].map(v => v.toFixed(0)).join(',') + ' len' + r.len); bad[k] = (bad[k] || 0) + 1; } } } }
     console.log('CHK ' + JSON.stringify(bad)); };
-  if (params.has('run')) { if (params.get('run')) sel = +params.get('run'); startRun(); if (params.has('sim')) { const n = +params.get('sim'); for (let i = 0; i < n && state === 'run'; i++) { if (params.has('auto')) autopilot(); if (i === n - 12 && params.has('jump')) act('up'); if (i === n - 20 && params.has('slide')) act('down'); update(1 / 60, i / 60); } if (params.has('gig')) { startGig(); for (let i = 0; i < +params.get('gig'); i++) update(1 / 60, i / 60); if (params.has('pshoot') && photo) { photo.needle = .5; shoot(); } } if (params.has('chk')) chkRoad(); if (params.has('down')) { gameOver('Test'); for (let i = 0; i < +params.get('down'); i++) update(1 / 60, i / 60); } const d = document.createElement('div'); d.style.cssText = 'position:fixed;top:120px;left:10px;font:14px monospace;background:#000a;padding:6px;z-index:99'; d.textContent = `state=${state} segI=${segI} s=${s.toFixed(1)} len=${seg.len} turn=${seg.turn} turnQ=${turnQ} lane=${lane} lat=${lat.toFixed(2)} dist=${dist.toFixed(0)} reason=${$('overLine').textContent}`; document.body.appendChild(d); } }
+  if (params.has('run')) { if (params.get('run')) sel = +params.get('run'); startRun(); if (params.has('sim')) { const n = +params.get('sim'); for (let i = 0; i < n && state === 'run'; i++) { if (params.has('auto')) autopilot(); if (i === n - 12 && params.has('jump')) act('up'); if (i === n - 20 && params.has('slide')) act('down'); update(1 / 60, i / 60); } if (params.has('gig')) { startGig(); for (let i = 0; i < +params.get('gig'); i++) update(1 / 60, i / 60); if (params.has('pshoot') && photo) { photo.needle = .5; shoot(); } } if (params.has('chk')) chkRoad(); if (params.has('pickc')) { const rc = new THREE.Raycaster(); camera.updateMatrixWorld(); rc.setFromCamera(new THREE.Vector2(0, -.1), camera); const hs = rc.intersectObjects(scene.children, true).slice(0, 6); console.log('PICK ' + hs.map(h => { let k = '', o = h.object; for (let q = o; q; q = q.parent) k ||= q.userData.k; return (k || o.type + ':' + (o.geometry?.type || '') + ':' + (o.material?.type || '')) + ' d' + h.distance.toFixed(2) + ' cam' + camera.position.toArray().map(v => v.toFixed(1)) + ' near' + camera.near; }).join(' | ')); } if (params.has('down')) { gameOver('Test'); for (let i = 0; i < +params.get('down'); i++) update(1 / 60, i / 60); } const d = document.createElement('div'); d.style.cssText = 'position:fixed;top:120px;left:10px;font:14px monospace;background:#000a;padding:6px;z-index:99'; d.textContent = `state=${state} segI=${segI} s=${s.toFixed(1)} len=${seg.len} turn=${seg.turn} turnQ=${turnQ} lane=${lane} lat=${lat.toFixed(2)} dist=${dist.toFixed(0)} reason=${$('overLine').textContent}`; document.body.appendChild(d); } }
 })();
 
 function autopilot() {
