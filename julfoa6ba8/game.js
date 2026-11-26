@@ -1126,28 +1126,51 @@ function playAct(g, name, fade = .15, ts = 1) {
 
 // ------------------------------------------------------------------ the chaser: a shadow
 const chaser = new THREE.Group(); scene.add(chaser); chaser.scale.setScalar(.66);
-const smokeMat = new THREE.SpriteMaterial({ map: T.smoke, color: 0x07020c, transparent: true, depthWrite: false, opacity: .85 });
+const smokeMat = new THREE.SpriteMaterial({ map: T.smoke, color: 0x120626, transparent: true, depthWrite: false, opacity: .7 });
 const smoke = [];
-for (let i = 0; i < 40; i++) { const sp = new THREE.Sprite(smokeMat.clone()); sp.userData = { a: Math.random() * 6.28, r: Math.random(), h: Math.random(), sp: rand(.6, 1.6) }; chaser.add(sp); smoke.push(sp); }
-const chaserU = { uTime: { value: 0 } };
-const cBody = new THREE.Mesh(new THREE.SphereGeometry(1, 40, 28), new THREE.ShaderMaterial({ // living shadow: wobbling dark body with a violet rim
-  transparent: false, uniforms: chaserU,
-  vertexShader: `uniform float uTime; varying vec3 vN; varying vec3 vV; varying float vW;
-    void main(){ vec3 p = position; float w = sin(p.y * 5. + uTime * 4.) * .06 + sin(p.x * 7. - uTime * 3.) * .04 + sin(atan(p.z, p.x) * 6. + uTime * 5.) * .05 * (1. - p.y);
-      p += normal * w; vW = w; vec4 mv = modelViewMatrix * vec4(p, 1.); vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }`,
-  fragmentShader: `varying vec3 vN; varying vec3 vV; varying float vW;
-    void main(){ float f = pow(1. - abs(dot(vN, vV)), 2.2); vec3 c = mix(vec3(.006, .002, .01), vec3(.11, .025, .19), pow(f, 3.)) + vW * .06; gl_FragColor = vec4(c, 1.); }` }));
-cBody.scale.set(.75, 1.1, .7); cBody.position.y = 1.6; chaser.add(cBody);
-const eyeMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1, .03, .02).multiplyScalar(2.6), toneMapped: false });
+for (let i = 0; i < 28; i++) { const sp = new THREE.Sprite(smokeMat.clone()); sp.userData = { a: Math.random() * 6.28, r: Math.random(), h: Math.random(), sp: rand(.6, 1.6) }; chaser.add(sp); smoke.push(sp); }
+const chaserU = { uTime: { value: 0 }, uClose: { value: 0 } };
+const NOISE_GLSL = `float hh(vec3 p){return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.5453);}
+  float n3(vec3 p){vec3 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(mix(hh(i),hh(i+vec3(1,0,0)),f.x),mix(hh(i+vec3(0,1,0)),hh(i+vec3(1,1,0)),f.x),f.y),mix(mix(hh(i+vec3(0,0,1)),hh(i+vec3(1,0,1)),f.x),mix(hh(i+vec3(0,1,1)),hh(i+vec3(1,1,1)),f.x),f.y),f.z);}
+  float fbm3(vec3 p){float v=0.,a=.5;for(int k=0;k<4;k++){v+=a*n3(p);p*=2.1;a*=.5;}return v;}`;
+// hooded wraith: lathe cloak whose hem tears into smoke, violet rim, ember glow from inside the hood
+const cloakPts = [[.95, 0], [.9, .25], [.78, .7], [.62, 1.2], [.56, 1.5], [.5, 1.75], [.47, 1.95], [.42, 2.15], [.3, 2.38], [.12, 2.52], [.01, 2.56]].map(([r, y]) => new THREE.Vector2(r, y));
+const cBody = new THREE.Mesh(new THREE.LatheGeometry(cloakPts, 48), new THREE.ShaderMaterial({
+  uniforms: chaserU, side: THREE.DoubleSide, transparent: true, depthWrite: true,
+  vertexShader: `uniform float uTime; varying vec3 vN; varying vec3 vV; varying vec3 vP; ${NOISE_GLSL}
+    void main(){ vec3 p = position; float lowK = 1. - smoothstep(0., 1.6, p.y); float a = atan(p.z, p.x);
+      p.xz *= 1. + (sin(a * 5. + uTime * 4.) * .07 + sin(a * 9. - uTime * 6.) * .04) * lowK;
+      p.z -= lowK * lowK * .35 * (.6 + .4 * sin(uTime * 3. + a)); // hem trails behind
+      p += normal * (fbm3(vec3(p.x * 2., p.y * 2. - uTime * .8, p.z * 2.)) - .5) * .12;
+      vP = position; vec4 mv = modelViewMatrix * vec4(p, 1.); vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }`,
+  fragmentShader: `uniform float uTime, uClose; varying vec3 vN; varying vec3 vV; varying vec3 vP; ${NOISE_GLSL}
+    void main(){ float n = fbm3(vec3(vP.x * 3., vP.y * 3. - uTime * 1.4, vP.z * 3.));
+      float tear = smoothstep(.0, .9, vP.y) * .9 + .1; if (n > tear + .25) discard; // the hem dissolves into smoke
+      float rim = pow(1. - abs(dot(normalize(vN), vV)), 2.4);
+      if (rim > .45 && fbm3(vec3(vP * 5.) + vec3(0., -uTime * 2., 0.)) > .62 - rim * .25) discard; // wispy smoky silhouette
+      vec3 c = mix(vec3(.012, .006, .02), vec3(.28, .07, .46), rim);
+      float face = smoothstep(.55, 0., length(vec2(vP.x, (vP.y - 2.05) * 1.3))) * step(vP.z, 0.); // ember glow inside the hood
+      c += vec3(.9, .12, .08) * face * (.35 + .65 * uClose) * (.7 + .3 * sin(uTime * 7.));
+      float a = smoothstep(tear + .25, tear, n) * (.92 - .3 * (1. - smoothstep(0., .5, vP.y)));
+      gl_FragColor = vec4(c, a); }` }));
+cBody.position.y = .0; chaser.add(cBody);
+const eyeMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1, .05, .03).multiplyScalar(3), toneMapped: false });
 const eyes = [];
-for (const x of [-.32, .32]) { const e = new THREE.Mesh(G.sphere, eyeMat); e.scale.set(.15, .06, .05); e.position.set(x, 2.15, -.72); e.rotation.z = x > 0 ? -.3 : .3; chaser.add(e); eyes.push(e); }
+for (const x of [-.15, .15]) { const e = new THREE.Mesh(G.sphere, eyeMat); e.scale.set(.085, .035, .03); e.position.set(x, 2.08, -.43); e.rotation.z = x > 0 ? -.35 : .35; chaser.add(e); eyes.push(e); }
+const eyeGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: T.glow, color: 0xff2030, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: .6 })); eyeGlow.position.set(0, 2.08, -.5); eyeGlow.scale.set(1.1, .55, 1); chaser.add(eyeGlow);
+// smoky tendrils reaching for the runner (tapered tubes bent in the vertex shader)
+const tendrilGeo = (() => { const pts = []; for (let k = 0; k <= 10; k++) pts.push(new THREE.Vector3(0, 0, -k * .16)); return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, .07, 7, false); })();
+{ const pos = tendrilGeo.attributes.position, uv = tendrilGeo.attributes.uv; for (let k = 0; k < pos.count; k++) { const t = uv.getX(k), sc = 1 - t * .9; pos.setX(k, pos.getX(k) * sc); pos.setY(k, pos.getY(k) * sc); } }
+const tendrilMat = new THREE.ShaderMaterial({ uniforms: chaserU, transparent: true, depthWrite: false,
+  vertexShader: `uniform float uTime, uClose; varying float vT; varying float vR;
+    void main(){ vec3 p = position; float t = uv.x; vT = t; float ph = float(gl_InstanceID) * 1.7;
+      p.x += sin(t * 6. + uTime * 5. + ph) * .22 * t; p.y += cos(t * 5. + uTime * 4. + ph) * .18 * t - t * t * .25;
+      p.z *= .8 + uClose * .7; vec4 mv = modelViewMatrix * instanceMatrix * vec4(p, 1.); vR = 0.; gl_Position = projectionMatrix * mv; }`,
+  fragmentShader: `varying float vT; void main(){ gl_FragColor = vec4(mix(vec3(.02,.006,.03), vec3(.25,.05,.35), vT), (1. - vT * .85) * .95); }` });
+const tendrils = new THREE.InstancedMesh(tendrilGeo, tendrilMat, 6); { const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
+  [[-.5, 1.75, -.3, -.5, .35], [.5, 1.75, -.3, .5, -.35], [-.45, 1.4, -.35, -.2, .6], [.45, 1.4, -.35, -.2, -.6], [-.3, 1.95, -.35, .15, .2], [.3, 1.95, -.35, .15, -.2]].forEach(([x, y, z, rx, ry], k) => { q.setFromEuler(e.set(rx, ry, 0)); m.compose(new THREE.Vector3(x, y, z), q, new THREE.Vector3(1, 1, 1)); tendrils.setMatrixAt(k, m); }); }
+tendrils.frustumCulled = false; chaser.add(tendrils);
 const arms = [];
-for (const side of [-1, 1]) {
-  const arm = new THREE.Group(); arm.position.set(side * .75, 1.9, -.2); chaser.add(arm);
-  const seg1 = new THREE.Mesh(new THREE.CylinderGeometry(.09, .16, 1.5, 8), new THREE.MeshBasicMaterial({ color: 0x050008 })); seg1.position.y = .7; arm.add(seg1);
-  for (let k = -1; k <= 1; k++) { const f = new THREE.Mesh(new THREE.ConeGeometry(.04, .45, 6), new THREE.MeshBasicMaterial({ color: 0x050008 })); f.position.set(k * .09, 1.62, 0); f.rotation.z = k * .3; arm.add(f); }
-  arm.userData.side = side; arms.push(arm);
-}
 const chaserLight = new THREE.PointLight(0xff1838, 1, 3.5); chaserLight.position.set(0, 2.2, -1); chaser.add(chaserLight);
 
 // shield bubble
@@ -1609,9 +1632,9 @@ function update(dt, t) {
   const close = 1 - clamp(gap, 0, 1);
   for (const sp of smoke) { const u = sp.userData; u.h += dt * u.sp * .5; if (u.h > 1) { u.h = 0; u.a = Math.random() * 6.28; u.r = Math.random(); }
     const rr = (.35 + u.r * .7) * (1 + u.h * .3); sp.position.set(Math.cos(u.a + t) * rr, .15 + u.h * 1.6, Math.sin(u.a + t) * rr * .6 - u.h * .3);
-    sp.scale.setScalar(.55 + u.h * .7); sp.material.opacity = (1 - u.h) * .6 * fade; }
-  cBody.scale.set(.75 + Math.sin(t * 6) * .04, 1.1 + Math.sin(t * 5) * .06, .7); chaserU.uTime.value = t;
-  for (const a of arms) { a.rotation.x = -1.1 - close * .7 + Math.sin(t * 9 + a.userData.side) * .25; a.rotation.z = -a.userData.side * (.35 - close * .2); }
+    sp.scale.setScalar(.6 + u.h * .9); sp.material.opacity = (1 - u.h) * .5 * fade; }
+  chaserU.uTime.value = t; chaserU.uClose.value = close; cBody.rotation.y = Math.sin(t * 1.3) * .15; eyeGlow.material.opacity = (.35 + close * .6) * fade;
+  if (fade > .5 && Math.random() < .35) { chaser.updateMatrixWorld(); const ep = tmp2.set(rand(-.5, .5), rand(.4, 2.2), rand(-.3, .3)).applyMatrix4(chaser.matrixWorld); emit(ep, pick([0xff3020, 0x9a3cff, 0xff6a2a]), rand(-.3, .3), rand(.6, 1.6), rand(-.3, .3), rand(.3, .6)); }
   const blink = Math.sin(t * 3.1) > .985 ? .1 : 1; eyes.forEach(e => e.scale.y = .06 * blink);
   chaserLight.intensity = .4 + close * 2.2;
   $('vign').style.opacity = clamp(close * 1.1 - .1, 0, .9) * fade;
