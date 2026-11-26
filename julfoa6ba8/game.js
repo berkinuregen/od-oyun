@@ -1466,6 +1466,7 @@ function startGig() {
   gig = { t: 0, s0, stage, band: [], props: [], savedSpeed: speed, startS: s, startLat: lat };
   gigVideo.play().then(() => { stage.userData.screen.material.map = gigVideoTex; stage.userData.screen.material.needsUpdate = true; }).catch(() => { });
   gig.props.push(gigAudience(s0));
+  gig.pg = makePhotographer(); if (gig.pg) { gig.pg.holder.position.copy(segPoint(seg, s0 - 1.0, -4.3)); gig.pg.holder.rotation.y = yawOf(seg.dir) + .35; }
   score += 1000; crowdCheer(3, .26); showMsg('OD BAND KONSERİ!', 2.2); flash('#ffcf4a', .45); $('mult').classList.add('hide');
   for (let i = 0; i < NGIRLS; i++) {
     const girl = i === sel ? player : makeGirl(i); if (i !== sel) scene.add(girl.holder);
@@ -1502,6 +1503,7 @@ function updateGig(dt, t) {
   for (const b of gig.stage.userData.beams) { b.rotation.z = Math.sin(t * 1.3 + b.userData.ph) * .5; b.rotation.x = Math.PI + Math.sin(t * .9 + b.userData.ph) * .4; }
   const left = Math.ceil(GIG_LEN + 1.2 - T0); if (left >= 0 && left <= GIG_LEN) $('hint').textContent = `🎸 KONSER ${left}`, $('hint').style.opacity = 1;
   score += dt * 40;
+  if (gig.pg) { gig.pg.mixer?.update(dt); if ((gig.pg.flashT -= dt) <= 0) { gig.pg.flashT = rand(.9, 2.2); photographerFlash(gig.pg); gig.pg.holder.rotation.y = yawOf(seg.dir) + rand(.1, .6); } }
   if (T0 > 1.2 && T0 < GIG_LEN + .8) { const W = ROAD_W + 5;
     for (const sx of [-W / 2 + .5, W / 2 - .5]) { const p = segPoint(seg, gig.s0 + .1, sx, tmp2); p.y = 1.15; for (let k = 0; k < 3; k++) emit(p, Math.random() < .5 ? 0xffd36b : 0xfff1c4, rand(-.5, .5), rand(6, 9), rand(-.5, .5), rand(.5, .9)); }
     for (let k = 0; k < 3; k++) { const p = segPoint(seg, gig.s0 + rand(-6, 3), rand(-W / 2, W / 2), tmp2); p.y = rand(6, 8); emit(p, pick([0xff3d9a, 0x4de1ff, 0xffcf4a, 0xffffff, 0xe8433b]), rand(-.6, .6), rand(.5, 1.5), rand(-.6, .6), rand(1, 1.6)); }
@@ -1544,8 +1546,19 @@ function makePerson(gltf) { // animated Quaternius fan (CC0)
   const holder = new THREE.Group(); m.scale.setScalar(k); m.position.y = -b.min.y * k; holder.add(m); m.traverse(o => { if (o.isMesh) o.castShadow = true; });
   const mixer = new THREE.AnimationMixer(m), clip = n => gltf.animations.find(c => c.name.toLowerCase().includes(n));
   const act = {}; for (const n of ['walk', 'idle', 'clapping', 'standing']) { const c = clip(n); if (c) act[n] = mixer.clipAction(c); }
+  // ground the skinned model by its lowest foot bone after posing (the bind-pose bbox sits them in the floor)
+  mixer.update(0); holder.updateMatrixWorld(true); let minY = Infinity; const v = new THREE.Vector3(); m.traverse(o => { if (o.isBone && /foot|toe/i.test(o.name)) { o.getWorldPosition(v); minY = Math.min(minY, v.y); } }); if (isFinite(minY)) m.position.y += .06 - minY;
   return { holder, mixer, act, cur: null, play(n, f = .2) { const a = this.act[n] || this.act.idle; if (!a || a === this.cur) return; a.reset().fadeIn(f).play(); this.cur?.fadeOut(f); this.cur = a; } };
 }
+function makePhotographer() { // our DoP with his camera (falls back to a crowd man if his model is missing)
+  let pg = null;
+  if (PHOTOG) { pg = makeGirl(-1); pg.inner.rotation.y = 0; playAct(pg, 'idle', 0, 1); } // his model was exported facing the other way else if (CROWD.raw?.[0]) { pg = makePerson(CROWD.raw[0]); pg.play('idle', 0); }
+  if (!pg) return null; scene.add(pg.holder);
+  const cam = new THREE.Group(); const body = new THREE.Mesh(new THREE.BoxGeometry(.16, .11, .09), new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: .5 })); cam.add(body);
+  const lens = new THREE.Mesh(new THREE.CylinderGeometry(.04, .045, .12, 16), new THREE.MeshStandardMaterial({ color: 0x111111, roughness: .3, metalness: .5 })); lens.rotation.x = Math.PI / 2; lens.position.z = -.09; cam.add(lens);
+  cam.position.set(0, 1.62, -.22); pg.holder.add(cam); pg.cam = cam; pg.flashT = 1; return pg;
+}
+function photographerFlash(pg) { const p = pg.cam.getWorldPosition(new THREE.Vector3()); for (let k = 0; k < 14; k++) emit(p, 0xffffff, rand(-1.5, 1.5), rand(-.5, 1.5), rand(-1.5, 1.5), .18); sfx(2600, .03, 'square', .015); }
 function startPhoto() {
   // clear the stage, keep the chosen girl in front of it
   for (const g of gig.band) if (g !== player) scene.remove(g.holder);
@@ -1555,12 +1568,8 @@ function startPhoto() {
   state = 'photo'; flash('#ffffff', .35);
   const spot = segPoint(seg, s0 - 2.2, -.45); player.holder.position.copy(spot); player.holder.position.y = 0;
   const face = yawOf(seg.dir) + Math.PI; player.holder.rotation.y = face; player.inner.rotation.set(0, Math.PI, 0); playAct(player, 'idle', .3, 1);
-  let pg = null;
-  if (PHOTOG) { pg = makeGirl(-1); } else if (CROWD.raw?.[0]) { pg = makePerson(CROWD.raw[0]); }
-  if (pg) { pg.holder.position.copy(segPoint(seg, s0 - 7.2, .2)); pg.holder.rotation.y = yawOf(seg.dir); scene.add(pg.holder); if (pg.actions) playAct(pg, 'idle', 0, 1); else pg.play('idle', 0);
-    const cam = new THREE.Group(); const body = new THREE.Mesh(new THREE.BoxGeometry(.16, .11, .09), new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: .5 })); cam.add(body);
-    const lens = new THREE.Mesh(new THREE.CylinderGeometry(.04, .045, .12, 16), new THREE.MeshStandardMaterial({ color: 0x111111, roughness: .3, metalness: .5 })); lens.rotation.x = Math.PI / 2; lens.position.z = -.09; cam.add(lens);
-    cam.position.set(0, 1.62, -.22); pg.holder.add(cam); pg.cam = cam; }
+  const pg = gig.pg || makePhotographer(); gig.pg = null;
+  if (pg) { pg.holder.position.copy(segPoint(seg, s0 - 7.2, .2)); pg.holder.rotation.y = yawOf(seg.dir); pg.holder.parent || scene.add(pg.holder); }
   $('hint').style.opacity = 0;
   photo = { s0, n: 0, phase: 'walk', t: 0, fan: null, pg, total: 0, needle: 0, dir: 1, speed: 1.1, shots: [] };
   nextFan(); $('photoUi').classList.remove('hide'); showMsg('HAYRANLAR FOTOĞRAF İSTİYOR!', 2);
@@ -1571,9 +1580,9 @@ function nextFan() {
   const raw = CROWD.raw?.[photo.n % (CROWD.raw?.length || 1)];
   const fan = raw ? makePerson(raw) : { holder: new THREE.Mesh(new THREE.CapsuleGeometry(.25, 1, 4, 8), new THREE.MeshStandardMaterial({ color: 0x5577aa })), mixer: null, play() { } };
   if (!raw) fan.holder.position.y = .75;
-  const side = photo.n % 2 ? 1 : -1; fan.from = segPoint(seg, photo.s0 - 2.4, side * 7.5); fan.to = segPoint(seg, photo.s0 - 2.25, .45);
+  const side = photo.n % 2 ? 1 : -1; fan.from = segPoint(seg, photo.s0 - 2.4, side * 5.2); fan.to = segPoint(seg, photo.s0 - 2.25, .45);
   fan.holder.position.copy(fan.from); fan.holder.position.y = raw ? 0 : .75; scene.add(fan.holder); fan.play('walk', 0);
-  photo.fan = fan; photo.phase = 'walk'; photo.t = 0; photo.speed = 1.0 + photo.n * .28; photo.needle = Math.random(); photo.dir = 1;
+  photo.fan = fan; photo.phase = 'walk'; photo.t = 0; photo.speed = .5 + photo.n * .1; photo.needle = Math.random(); photo.dir = 1;
   $('photoBar').classList.add('dim'); $('photoCount').textContent = `${photo.n + 1} / ${PHOTO_N}`; $('photoRes').textContent = '';
 }
 function updatePhoto(dt, t) {
@@ -1582,19 +1591,19 @@ function updatePhoto(dt, t) {
   if (P.phase === 'walk') {
     const to = tmp2.copy(fan.to).sub(fan.holder.position); to.y = 0; const d = to.length();
     if (d < .08) { P.phase = 'aim'; P.t = 0; fan.play('standing') || fan.play('idle'); fan.holder.rotation.y = yawOf(seg.dir); $('photoBar').classList.remove('dim'); hint(MOBILE ? 'ekrana dokun: ÇEK!' : 'boşluk / tıkla: ÇEK!', 2); }
-    else { to.normalize(); fan.holder.position.addScaledVector(to, Math.min(d, 2.6 * dt)); fan.holder.rotation.y = Math.atan2(to.x, to.z); }
+    else { to.normalize(); fan.holder.position.addScaledVector(to, Math.min(d, 4.4 * dt)); if (fan.act?.walk) fan.act.walk.timeScale = 1.6; fan.holder.rotation.y = Math.atan2(to.x, to.z); }
   } else if (P.phase === 'aim') {
     P.needle += P.dir * P.speed * dt; if (P.needle > 1) { P.needle = 2 - P.needle; P.dir = -1; } if (P.needle < 0) { P.needle = -P.needle; P.dir = 1; }
     $('photoNeedle').style.left = (P.needle * 100) + '%';
     fan.holder.rotation.y = yawOf(seg.dir); player.holder.rotation.y = angLerp(player.holder.rotation.y, face + .25, dt * 4);
     if (P.t > 7) shoot(); // too slow: blurry shot
   } else if (P.phase === 'after') {
-    if (P.t > 1.0 && P.t < 1.05) { fan.play('walk'); }
-    if (P.t > 1.0) { const to = tmp2.copy(fan.from).sub(fan.holder.position); to.y = 0; const d = to.length(); if (d > .1) { to.normalize(); fan.holder.position.addScaledVector(to, Math.min(d, 3.2 * dt)); fan.holder.rotation.y = Math.atan2(to.x, to.z); } }
-    if (P.t > 2.2) { P.n++; nextFan(); }
+    if (P.t > .55 && P.t < .6) { fan.play('walk'); }
+    if (P.t > .55) { const to = tmp2.copy(fan.from).sub(fan.holder.position); to.y = 0; const d = to.length(); if (d > .1) { to.normalize(); fan.holder.position.addScaledVector(to, Math.min(d, 5 * dt)); fan.holder.rotation.y = Math.atan2(to.x, to.z); } }
+    if (P.t > 1.35) { P.n++; nextFan(); }
   }
   // camera over the photographer's shoulder, framing her + the fan
-  const mid = segPoint(seg, P.s0 - 2.2, 0, tmp2).setY(1.3), back = segPoint(seg, P.s0 - 8.9, 1.5, tmp); back.y = 2.35;
+  const mid = segPoint(seg, P.s0 - 2.2, 0, tmp2).setY(1.3), back = segPoint(seg, P.s0 - 10.4, .95, tmp); back.y = 2.55; // just behind and above the photographer's shoulder
   camera.position.lerp(back, Math.min(1, dt * 3)); camera.lookAt(mid);
 }
 function shoot() {
