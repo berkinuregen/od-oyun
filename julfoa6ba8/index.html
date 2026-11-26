@@ -156,6 +156,8 @@
   .lblist li.me{background:rgba(255,207,74,.18);border-radius:10px}
   .lblist li.empty{display:block;text-align:center;opacity:.6}
   .lblist li.empty::before{content:none}
+  .speedlines{opacity:0;pointer-events:none;background:repeating-conic-gradient(from 0deg at 50% 46%,rgba(255,255,255,.0) 0deg 2.2deg,rgba(255,255,255,.55) 2.4deg 2.7deg,rgba(255,255,255,0) 2.9deg 7deg);-webkit-mask-image:radial-gradient(ellipse at 50% 46%,transparent 34%,#000 75%);mask-image:radial-gradient(ellipse at 50% 46%,transparent 34%,#000 75%);mix-blend-mode:screen;animation:sl .18s steps(3) infinite;transition:opacity .25s}
+  @keyframes sl{0%{transform:rotate(0)}100%{transform:rotate(3deg)}}
   .credits li span{opacity:.85;color:#fff;text-align:right;min-width:0}
   .card{overflow-x:hidden}
   .stat{font-family:Anton,Impact;font-size:72px;line-height:1}
@@ -180,6 +182,7 @@
 <body>
 <div id="game"></div>
 <div id="vign" class="layer"></div>
+<div id="speedLines" class="layer speedlines"></div>
 <div id="flash" class="layer"></div>
 
 <div id="hud" class="layer hide">
@@ -294,6 +297,6 @@
 
 <div id="loading"><div><img src="assets/logo_red.png" alt="OD Band" style="width:min(56vw,260px);display:block;margin:0 auto 6px"><div class="lbar"><i id="lbar"></i></div><small id="ltxt">yükleniyor…</small></div></div>
 
-<script type="module" src="game.js?v=20261128x"></script>
+<script type="module" src="game.js?v=20261129b"></script>
 </body>
 </html>
